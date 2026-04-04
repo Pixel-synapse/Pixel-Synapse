@@ -1,0 +1,128 @@
+{
+  "towns": [
+    {
+      "id": "pixel_synapse",
+      "name": "Pixel Synapse",
+      "subtitle": "The Town Where It All Began",
+      "description": "A cozy pixel town buzzing with artists, hackers, and cafe regulars. Social, lively, politically active.",
+      "flavor": "Home town",
+      "mapType": "city",
+      "color": "#4455cc",
+      "icon": "P",
+      "spawnX": 400, "spawnY": 400,
+      "shopBonus": 1.0, "jobBonus": 1.0,
+      "isHome": true,
+      "culture": { "friendliness": 65, "honesty": 60, "wealth": 55, "chaos": 40, "labels": ["Lively", "Friendly", "Political"] },
+      "economy": "moderate", "economyLabel": "Thriving",
+      "population": "medium", "populationLabel": "48 residents",
+      "politics": "balanced", "politicsLabel": "Active voting",
+      "worldMapX": 50, "worldMapY": 45,
+      "npcs": [
+        { "id": "lena",  "x": 180, "y": 140, "role": "Curious Journalist"  },
+        { "id": "orion", "x": 560, "y": 80,  "role": "Distracted Inventor" },
+        { "id": "mira",  "x": 100, "y": 560, "role": "Cafe Owner"          },
+        { "id": "kai",   "x": 680, "y": 680, "role": "Network Operative"   },
+        { "id": "zara",  "x": 400, "y": 560, "role": "Street Musician"     },
+        { "id": "bram",  "x": 80,  "y": 400, "role": "Town Guard"          },
+        { "id": "ivy",   "x": 120, "y": 120, "role": "Botanist"            },
+        { "id": "juno",  "x": 400, "y": 200, "role": "Racer"               },
+        { "id": "sol",   "x": 400, "y": 400, "role": "Retired Adventurer"  },
+        { "id": "pix",   "x": 560, "y": 400, "role": "Learning Automaton"  }
+      ]
+    },
+    {
+      "id": "neon_docks",
+      "name": "Neon Docks",
+      "subtitle": "Where the Network Never Sleeps",
+      "description": "A bustling harbour district run by traders and informants. High prices but lucrative jobs.",
+      "flavor": "Industrial port",
+      "mapType": "industrial",
+      "color": "#00E5FF",
+      "icon": "N",
+      "spawnX": 200, "spawnY": 500,
+      "shopBonus": 1.4, "jobBonus": 1.6,
+      "culture": { "friendliness": 30, "honesty": 40, "wealth": 80, "chaos": 55, "labels": ["Competitive", "Wealthy", "Cutthroat"] },
+      "economy": "high", "economyLabel": "Expensive",
+      "population": "large", "populationLabel": "120 residents",
+      "politics": "corporate", "politicsLabel": "Merchant council",
+      "worldMapX": 82, "worldMapY": 38,
+      "npcs": [
+        { "id": "orion", "x": 560, "y": 200, "role": "Dock Inventor"    },
+        { "id": "kai",   "x": 650, "y": 400, "role": "Port Informant"   },
+        { "id": "juno",  "x": 300, "y": 600, "role": "Courier Racer"   },
+        { "id": "bram",  "x": 150, "y": 350, "role": "Dock Guard"       },
+        { "id": "mira",  "x": 400, "y": 500, "role": "Harbour Vendor"   }
+      ]
+    },
+    {
+      "id": "verdant_hollow",
+      "name": "Verdant Hollow",
+      "subtitle": "Nature's Last Stronghold",
+      "description": "A quiet village deep in the forest. Cheap goods, honest people, low drama.",
+      "flavor": "Forest village",
+      "mapType": "village",
+      "color": "#81C784",
+      "icon": "V",
+      "spawnX": 400, "spawnY": 650,
+      "shopBonus": 0.7, "jobBonus": 0.8,
+      "culture": { "friendliness": 85, "honesty": 80, "wealth": 25, "chaos": 10, "labels": ["Calm", "Honest", "Close-knit"] },
+      "economy": "low", "economyLabel": "Affordable",
+      "population": "small", "populationLabel": "22 residents",
+      "politics": "cooperative", "politicsLabel": "Consensus vote",
+      "worldMapX": 25, "worldMapY": 70,
+      "npcs": [
+        { "id": "ivy",  "x": 300, "y": 300, "role": "Head Botanist"   },
+        { "id": "zara", "x": 500, "y": 400, "role": "Forest Musician" },
+        { "id": "sol",  "x": 400, "y": 500, "role": "Elder Guide"     },
+        { "id": "lena", "x": 250, "y": 500, "role": "Field Reporter"  }
+      ]
+    },
+    {
+      "id": "iron_gate",
+      "name": "Iron Gate",
+      "subtitle": "Order Above All Else",
+      "description": "A heavily guarded fortress-town. Strict laws, high safety, strong military economy.",
+      "flavor": "Fortress town",
+      "mapType": "city",
+      "color": "#8D6E63",
+      "icon": "I",
+      "spawnX": 400, "spawnY": 600,
+      "shopBonus": 1.1, "jobBonus": 1.3,
+      "culture": { "friendliness": 25, "honesty": 75, "wealth": 60, "chaos": 15, "labels": ["Strict", "Orderly", "Military"] },
+      "economy": "military", "economyLabel": "Tax-funded",
+      "population": "medium", "populationLabel": "65 residents",
+      "politics": "authoritarian", "politicsLabel": "Watch authority",
+      "worldMapX": 60, "worldMapY": 72,
+      "npcs": [
+        { "id": "bram", "x": 400, "y": 400, "role": "Gate Commander"       },
+        { "id": "juno", "x": 550, "y": 350, "role": "Scout Runner"         },
+        { "id": "kai",  "x": 250, "y": 300, "role": "Intelligence Agent"   },
+        { "id": "sol",  "x": 400, "y": 600, "role": "Military Historian"   }
+      ]
+    },
+    {
+      "id": "glitch_city",
+      "name": "Glitch City",
+      "subtitle": "Reality is a Suggestion Here",
+      "description": "A chaotic anarchic tech-district. Wild politics, unpredictable economy, maximum drama.",
+      "flavor": "Anarchic tech hub",
+      "mapType": "chaotic",
+      "color": "#00ffcc",
+      "icon": "G",
+      "spawnX": 400, "spawnY": 250,
+      "shopBonus": 0.5, "jobBonus": 2.0,
+      "culture": { "friendliness": 45, "honesty": 20, "wealth": 35, "chaos": 95, "labels": ["Chaotic", "Deceptive", "Experimental"] },
+      "economy": "volatile", "economyLabel": "Volatile",
+      "population": "unknown", "populationLabel": "? residents",
+      "politics": "chaotic", "politicsLabel": "No rules",
+      "worldMapX": 75, "worldMapY": 20,
+      "npcs": [
+        { "id": "pix",   "x": 400, "y": 200, "role": "Glitch Entity"   },
+        { "id": "orion", "x": 600, "y": 350, "role": "Mad Tinkerer"    },
+        { "id": "kai",   "x": 200, "y": 450, "role": "Data Anarchist"  },
+        { "id": "lena",  "x": 500, "y": 500, "role": "Chaos Reporter"  },
+        { "id": "zara",  "x": 300, "y": 300, "role": "Glitch Musician" }
+      ]
+    }
+  ]
+}

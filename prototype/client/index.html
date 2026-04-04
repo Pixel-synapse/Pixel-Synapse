@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixel Synapse — Prototype</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #06060f; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: 'Courier New', monospace; }
+    #ui { width: 800px; display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: #0a0a18; border: 1px solid #1a1a3a; margin-bottom: 0; }
+    #ui-name  { font-size: 11px; color: #aabbff; letter-spacing: 1px; }
+    #ui-count { font-size: 10px; color: #445566; }
+    #ui-hint  { font-size: 9px; color: #334; }
+    #game     { border: 2px solid #1a1a3a; display: block; }
+    #chat-bar { width: 800px; display: flex; gap: 0; }
+    #chat-input { flex: 1; background: #0a0a18; border: 1px solid #1a1a3a; border-top: none; color: #ccdde8; padding: 6px 10px; font-family: 'Courier New', monospace; font-size: 11px; outline: none; }
+    #chat-input::placeholder { color: #334; }
+    #chat-send { background: #1a1a3a; border: 1px solid #1a1a3a; border-top: none; border-left: none; color: #aabbff; padding: 6px 14px; font-family: 'Courier New', monospace; font-size: 11px; cursor: pointer; }
+    #chat-log { width: 800px; height: 80px; overflow-y: auto; background: #06060f; border: 1px solid #111; border-top: none; padding: 4px 8px; }
+    .chat-line { font-size: 10px; color: #556677; line-height: 1.6; }
+    .chat-line span { font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <div id="ui-name">PIXEL SYNAPSE</div>
+    <div id="ui-count">● 1 online</div>
+    <div id="ui-hint">WASD / arrows to move · Enter to chat</div>
+  </div>
+  <canvas id="game" width="800" height="600"></canvas>
+  <div id="chat-bar">
+    <input id="chat-input" placeholder="press Enter to chat..." maxlength="80" />
+    <button id="chat-send">SEND</button>
+  </div>
+  <div id="chat-log"></div>
+
+  <!-- Socket.io client (loaded from server) -->
+  <script src="http://localhost:3000/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "pixel-synapse-proto",
+  "version": "1.0.0",
+  "description": "Pixel Synapse multiplayer prototype (Socket.io)",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev":   "nodemon server/server.js"
+  },
+  "dependencies": {
+    "express":   "^4.18.2",
+    "socket.io": "^4.7.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

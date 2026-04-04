@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pixel Synapse — Multiplayer Proto</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+
+    body {
+      background: #06060f;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #aabbff;
+      overflow: hidden;
+    }
+
+    #title {
+      font-size: 13px;
+      letter-spacing: 4px;
+      color: #4455cc;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    #status {
+      font-size: 10px;
+      color: #334;
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+      min-height: 14px;
+    }
+
+    #game-wrap {
+      position: relative;
+      border: 2px solid #1a1a3a;
+      box-shadow: 0 0 40px #1a1a3a;
+    }
+
+    /* ── Chat ── */
+    #chat-panel {
+      position: absolute;
+      bottom: 0; left: 0;
+      width: 260px;
+      max-height: 160px;
+      background: #06060fcc;
+      border-right: 1px solid #1a1a2a;
+      border-top: 1px solid #1a1a2a;
+      display: flex;
+      flex-direction: column;
+      z-index: 10;
+    }
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      font-size: 10px;
+      line-height: 1.6;
+    }
+    #chat-log .msg-name { color: #4fc3f7; }
+    #chat-log .msg-text { color: #ccdde8; }
+    #chat-input-row {
+      display: flex;
+      border-top: 1px solid #1a1a2a;
+    }
+    #chat-input {
+      flex: 1;
+      background: #0a0a14;
+      border: none;
+      color: #ccdde8;
+      font-size: 10px;
+      padding: 5px 8px;
+      font-family: 'Courier New', monospace;
+      outline: none;
+    }
+    #chat-send {
+      background: #1a1a2a;
+      border: none;
+      border-left: 1px solid #1a1a2a;
+      color: #4455cc;
+      padding: 0 10px;
+      cursor: pointer;
+      font-size: 10px;
+    }
+    #chat-send:hover { background: #242444; }
+
+    /* ── Player count ── */
+    #player-count {
+      position: absolute;
+      top: 8px; right: 10px;
+      font-size: 9px;
+      color: #44ff88;
+      letter-spacing: 1px;
+      z-index: 10;
+    }
+
+    #controls {
+      margin-top: 8px;
+      font-size: 9px;
+      color: #223;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="title">⬛ PIXEL SYNAPSE</div>
+  <div id="status">Connecting…</div>
+
+  <div id="game-wrap">
+    <div id="game"></div>
+    <div id="player-count">● 1 online</div>
+    <div id="chat-panel">
+      <div id="chat-log"></div>
+      <div id="chat-input-row">
+        <input id="chat-input" type="text" placeholder="press Enter to chat…" maxlength="120" autocomplete="off">
+        <button id="chat-send">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="controls">ARROW KEYS or WASD to move · ENTER to chat</div>
+
+  <!-- Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

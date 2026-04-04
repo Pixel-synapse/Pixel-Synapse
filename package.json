@@ -1,0 +1,17 @@
+{
+  "name": "pixel-synapse",
+  "version": "1.0.0",
+  "description": "Pixel Synapse MMO",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev":   "nodemon server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws":      "^8.14.2"
+  }
+}

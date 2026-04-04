@@ -1,0 +1,10 @@
+{
+  "home":        { "x": 160,  "y": 160,  "label": "Home district",       "radius": 32 },
+  "cafe":        { "x": 112,  "y": 592,  "label": "Mira's Café",          "radius": 28 },
+  "workshop":    { "x": 592,  "y": 96,   "label": "Orion's Workshop",     "radius": 32 },
+  "town_square": { "x": 400,  "y": 400,  "label": "Town Square",          "radius": 48 },
+  "fountain":    { "x": 400,  "y": 400,  "label": "Fountain",             "radius": 24 },
+  "park":        { "x": 128,  "y": 128,  "label": "The Park",             "radius": 48 },
+  "east_wall":   { "x": 752,  "y": 400,  "label": "East Wall",            "radius": 24 },
+  "market":      { "x": 240,  "y": 560,  "label": "Market Street",        "radius": 32 }
+}
