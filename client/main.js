@@ -2604,12 +2604,14 @@ class GameScene extends Phaser.Scene {
       // Enter building if standing at a door
       if (gameState._nearDoor && !gameState.dialogueOpen) {
         const door = gameState._nearDoor;
-        this.scene.start('HouseScene', {
+        gameState._pendingHouseData = {
           houseId:    door.houseId,
           houseLabel: door.houseLabel,
           returnX:    door.returnX,
           returnY:    door.returnY,
-        });
+        };
+        this.scene.launch('HouseScene', gameState._pendingHouseData);
+        this.scene.sleep('GameScene');
         return;
       }
       if (!gameState.dialogueOpen) this.tryInteract();
@@ -4350,9 +4352,9 @@ class HouseScene extends Phaser.Scene {
       if (gameState.mySprite) {
         gameState.mySprite.setPosition(gameState.myX, gameState.myY);
       }
-      console.log(`[HouseScene] exiting → GameScene`);
+      console.log('[HouseScene] exiting → waking GameScene');
       this.scene.stop('HouseScene');
-      this.scene.start('GameScene');
+      this.scene.wake('GameScene');
     }
   }
 }
