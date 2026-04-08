@@ -1618,6 +1618,74 @@ function drawInteriorTile(ctx, px, py) {
   ctx.fillRect(px, py, 1, 16);
 }
 
+// ─────────────────────────────────────────────
+// TILEMAP DATA GENERATOR
+// Produces a 2D array (ROWS × COLS) of tile indices
+// matching the exact layout drawn in createTextures.
+// Tile indices: 0=grass, 1=road, 2=cobble, 3=water, 4=path
+//
+// This enables Phaser's make.tilemap() API for the ground layer
+// (reference doc pattern) while keeping our pixel-art tile functions.
+// ─────────────────────────────────────────────
+function buildMapData() {
+  const COLS = WORLD_W / TILE_SIZE;
+  const ROWS = WORLD_H / TILE_SIZE;
+
+  // Fill with grass (0)
+  const data = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+
+  // Roads: H at rows 30+31, V at cols 35+36
+  for (let tx = 0; tx < COLS; tx++) {
+    data[30][tx] = 1; data[31][tx] = 1;
+  }
+  for (let ty = 0; ty < ROWS; ty++) {
+    data[ty][35] = 1; data[ty][36] = 1;
+  }
+
+  // Plaza: cobble at rows 27–33, cols 32–38
+  for (let ty = 27; ty <= 33; ty++) {
+    for (let tx = 32; tx <= 38; tx++) {
+      data[ty][tx] = 2;
+    }
+  }
+
+  // Fountain: water at rows 29–31, cols 34–36
+  for (let ty = 29; ty <= 31; ty++) {
+    for (let tx = 34; tx <= 36; tx++) {
+      data[ty][tx] = 3;
+    }
+  }
+
+  return data;
+}
+
+// ─────────────────────────────────────────────
+// TILESET TEXTURE GENERATOR
+// Creates a single 'tileset_px' canvas texture with
+// 5 tiles in a horizontal strip (each TILE_SIZE px wide):
+//   col 0 = grass,  col 1 = road,  col 2 = cobble
+//   col 3 = water,  col 4 = path
+//
+// Used by this.make.tilemap() via addTilesetImage('tileset_px').
+// ─────────────────────────────────────────────
+function createTilesetTexture(scene) {
+  const TILE_COUNT = 5;
+  const key = 'tileset_px';
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const tex = scene.textures.createCanvas(key, TILE_SIZE * TILE_COUNT, TILE_SIZE);
+  const ctx = tex.getContext();
+  ctx.imageSmoothingEnabled = false;
+  drawGrassTile(ctx,    0 * TILE_SIZE, 0);
+  drawRoadTile(ctx,     1 * TILE_SIZE, 0);
+  drawCobbleTile(ctx,   2 * TILE_SIZE, 0);
+  drawWaterTile(ctx,    3 * TILE_SIZE, 0);
+  drawPathTile(ctx,     4 * TILE_SIZE, 0);
+  tex.refresh();
+  console.log('[tileset] ✓ tileset_px created — 5 tiles ×', TILE_SIZE + 'px');
+  return key;
+}
+
+
 function createTextures(scene) {
   if (scene.textures.exists('worldmap')) scene.textures.remove('worldmap');
   const worldGfx = scene.textures.createCanvas('worldmap', WORLD_W, WORLD_H);
@@ -1927,6 +1995,35 @@ function _addWorldGfx(scene, depth = 2) {
  * Spawn the world labels and zone markers for the home city (Pixel Synapse).
  * Called on initial create() and on returning home via travel.
  */
+// ─────────────────────────────────────────────
+// placeHouse — reference doc pattern
+// Builds a multi-tile building from individual tile images,
+// each with per-tile Y-based depth (tile at bottom sorts in front).
+// Matches: tile.setDepth((ty + y) * tileSize)
+// ─────────────────────────────────────────────
+function placeHouse(scene, tx, ty, sizeW, sizeH, tileKey, tileFrame) {
+  const T = TILE_SIZE * 2;  // display size (16px sprite at scale 2 = 32px)
+  const objects = [];
+  for (let row = 0; row < sizeH; row++) {
+    for (let col = 0; col < sizeW; col++) {
+      // Use the worldmap canvas tile art (frame from worldmap texture)
+      // For now use a tinted rectangle that matches the building colour
+      const px = (tx + col) * T;
+      const py = (ty + row) * T;
+      const img = scene.add.image(px, py, tileKey || 'worldmap')
+        .setOrigin(0, 0)
+        .setDisplaySize(T, T);
+      // Y-depth per tile: bottom tiles render in front of player above them
+      img.setDepth((ty + row) * T);
+      img.isTop = (row === 0);  // top row tiles are leaves/roof — above player
+      if (img.isTop) img.setDepth((ty + row) * T + 1000);
+      objects.push(img);
+      gameState.worldObjects.push(img);
+    }
+  }
+  return objects;
+}
+
 function spawnCityWorldObjects(scene) {
 
   // ════════════════════════════════════════════════
@@ -2726,9 +2823,28 @@ class GameScene extends Phaser.Scene {
     gameState.scene = this;
     createTextures(this);
 
-    // World — store reference on gameState so travel can redraw it
-    this.worldSprite = this.add.image(0,0,'worldmap').setOrigin(0,0);
+    // ── TILEMAP GROUND LAYER (reference doc: this.make.tilemap pattern) ──
+    // Build a 2D data array matching the map layout, create a Phaser tilemap
+    // from it, then render as a proper layer with individual tile depths.
+    // This replaces the single canvas worldmap image for the ground.
+    createTilesetTexture(this);
+    const mapData  = buildMapData();
+    const map = this.make.tilemap({
+      data:       mapData,
+      tileWidth:  TILE_SIZE,
+      tileHeight: TILE_SIZE,
+    });
+    const tileset    = map.addTilesetImage('tileset_px');
+    const groundLayer = map.createLayer(0, tileset, 0, 0);
+    groundLayer.setDepth(0);
+    console.log('[tilemap] ✓ Ground layer created —',
+      map.width + '×' + map.height, 'tiles,', TILE_SIZE + 'px each');
+
+    // Keep the worldmap canvas for travel/multi-town overlays and minimap
+    this.worldSprite = this.add.image(0, 0, 'worldmap').setOrigin(0, 0).setDepth(0).setAlpha(0);
     gameState.worldSprite = this.worldSprite;
+    // (Alpha 0 — tilemap layer is the visible ground; worldmap canvas
+    //  is kept for the minimap and town-switching which read from it)
 
     // Camera
     this.cameras.main.setBounds(0,0,WORLD_W,WORLD_H);
