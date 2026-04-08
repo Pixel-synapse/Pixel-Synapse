@@ -1865,66 +1865,74 @@ function createTextures(scene) {
   drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S", 'house_red');
   drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',    'shop');
 
-  // ── 4b. TOWNHALL — at plaza centre (reference doc: addBuilding(35,26,"townhall")) ──
+  // ── 4b. TOWNHALL — at plaza centre ──
   drawBuilding(ctx, 34, 25, 5, 5, '#f8a030', '#f8f0e0', 'HALL', 'townhall');
 
-  // ── 4c. SHOP DISTRICT — flanking the plaza (reference doc: addBuilding(32,30) etc.) ──
-  const shopDistrict = [[31,32],[37,32],[31,27],[37,27]];
-  shopDistrict.forEach(([tx2,ty2]) => {
+  // ── 4c. SHOP DISTRICT — flanking the plaza ──
+  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) => {
     if (!roadSet.has(`${tx2},${ty2}`) && !occupied.has(`${tx2},${ty2}`))
       drawBuilding(ctx, tx2, ty2, 5, 4, '#289048', '#e8f8e8', '', 'shop');
   });
 
-  // ── 4d. RESIDENTIAL BLOCKS — createBlock pattern (3×3, spacing=4) ──
-  // 4 blocks in quadrants: NW(10,10), SW(10,40), NE(45,10), SE(45,40)
-  const blockOrigins = [[10,10],[10,40],[45,10],[45,40]];
-  const blockVariants = ['house_red','house_blue','house_green'];
-  const rngB = (n) => { let x = Math.sin(n*47.3)*43758.5; return x-Math.floor(x); };
-  let bSeed = 0;
-  blockOrigins.forEach(([bx, by]) => {
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        bSeed++;
-        const wx = bx + col * 5;   // 5-tile spacing (4 gap + 1 building width rough)
-        const wy = by + row * 5;
-        if (roadSet.has(`${wx},${wy}`) || occupied.has(`${wx},${wy}`)) continue;
-        const vi = Math.floor(rngB(bSeed) * 3);
-        const v = blockVariants[vi];
-        const rc = v==='house_green' ? '#289048' : v==='house_blue' ? '#2848c0' : '#e82020';
-        const wc = v==='house_green' ? '#e8f8e0' : v==='house_blue' ? '#e8eaf8' : '#f0e8c0';
-        const lbl = v==='house_green' ? 'HOUSE' : v==='house_blue' ? 'HOUSE' : 'HOME';
-        drawBuilding(ctx, wx, wy, 4, 4, rc, wc, lbl, v);
-      }
-    }
+  // ── 4d. HOUSES — explicit positions array (reference doc pattern) ──
+  // Three types: red / blue / green, placed at clean fixed coordinates.
+  // Mirrors: const positions = [[10,12],[16,12],[22,12],...]; positions.forEach(...)
+  const housePositions = [
+    // North row — above main road
+    [10, 12, 'house_red' ], [16, 12, 'house_blue' ], [22, 12, 'house_green'],
+    [28, 12, 'house_red' ], [40, 12, 'house_blue' ], [46, 12, 'house_green'],
+    // South row — below main road
+    [10, 34, 'house_blue'], [16, 34, 'house_red'  ], [22, 34, 'house_green'],
+    [28, 34, 'house_blue'], [40, 34, 'house_green'], [46, 34, 'house_red'  ],
+  ];
+  const variantMap = {
+    house_red:   { rc:'#e82020', wc:'#f0e8c0', lbl:'HOME'  },
+    house_blue:  { rc:'#2848c0', wc:'#e8eaf8', lbl:'HOUSE' },
+    house_green: { rc:'#289048', wc:'#e8f8e0', lbl:'HOUSE' },
+  };
+  housePositions.forEach(([tx2, ty2, type]) => {
+    if (roadSet.has(`${tx2},${ty2}`) || occupied.has(`${tx2},${ty2}`)) return;
+    const { rc, wc, lbl } = variantMap[type];
+    drawBuilding(ctx, tx2, ty2, 4, 4, rc, wc, lbl, type);
   });
 
-  // ── 5. TREE CLUSTERS — treeCluster pattern (cx, cy, count, radius) ──
+  // ── 5. TREES — zone-based placement (reference doc pattern) ──
+  // Left zone:  x 2–8,  y 2–10  (20 trees in the NW park)
+  // Right zone: x 35–45, y 25–35 (20 trees in the SE forest)
+  // Each zone mirrors: for(i<20) addTree(Between(x1,x2), Between(y1,y2))
   const treeShadows = [];
   const rng2 = (n) => { let x = Math.sin(n*127.1)*43758.5; return x-Math.floor(x); };
 
-  function treeCluster(cx, cy, count, radius) {
-    for (let i = 0; i < count; i++) {
-      // Seeded random within ±radius of centre
-      const dx2 = Math.floor((rng2(cx*100+cy*7+i*3+1)*2-1) * radius);
-      const dy2 = Math.floor((rng2(cx*100+cy*7+i*3+2)*2-1) * radius);
-      const tx3 = cx + dx2, ty3 = cy + dy2;
-      if (tx3 < 0 || ty3 < 0 || tx3 >= COLS || ty3 >= ROWS) continue;
-      if (roadSet.has(`${tx3},${ty3}`)) continue;
-      if (occupied.has(`${tx3},${ty3}`)) continue;
-      treeShadows.push([tx3, ty3]);
-      ctx.fillStyle = 'rgba(0,0,0,0.16)';
-      ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(50,120,20,0.10)'; ctx.fillRect(tx3*S, ty3*S, S, S);
-    }
+  function addZoneTree(tx3, ty3) {
+    if (tx3 < 0 || ty3 < 0 || tx3 >= COLS || ty3 >= ROWS) return;
+    if (roadSet.has(`${tx3},${ty3}`)) return;
+    if (occupied.has(`${tx3},${ty3}`)) return;
+    treeShadows.push([tx3, ty3]);
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
+    ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(50,120,20,0.10)'; ctx.fillRect(tx3*S, ty3*S, S, S);
   }
 
-  // NW park cluster (reference doc: treeCluster(5,5,20))
-  treeCluster(5, 5, 30, 5);
-  // SE forest cluster (reference doc: treeCluster(60,50,25))
-  treeCluster(44, 44, 40, 5);
-  // Additional scattered clusters for fullness
-  treeCluster(5, 44, 20, 4);
-  treeCluster(44, 5, 20, 4);
+  // Left zone (NW park) — x:2–8, y:2–10, 20 trees
+  for (let i = 0; i < 20; i++) {
+    const tx3 = 2  + Math.floor(rng2(i*5+1) * 7);   // 2..8
+    const ty3 = 2  + Math.floor(rng2(i*5+2) * 9);   // 2..10
+    addZoneTree(tx3, ty3);
+  }
+  // Right zone (SE forest) — x:35–45, y:25–35, 20 trees
+  for (let i = 0; i < 20; i++) {
+    const tx3 = 35 + Math.floor(rng2(i*5+3) * 11);  // 35..45
+    const ty3 = 25 + Math.floor(rng2(i*5+4) * 11);  // 25..35
+    addZoneTree(tx3, ty3);
+  }
+  // Extra NE corner cluster
+  for (let i = 0; i < 12; i++) {
+    addZoneTree(40 + Math.floor(rng2(i*3+50)*9), 3 + Math.floor(rng2(i*3+51)*8));
+  }
+  // Extra SW corner cluster
+  for (let i = 0; i < 12; i++) {
+    addZoneTree(2 + Math.floor(rng2(i*3+60)*8), 34 + Math.floor(rng2(i*3+61)*8));
+  }
 
   worldGfx.refresh();
   console.log('[createTextures] ✓ Road-grid town drawn (50×50 tiles, road every 8, procedural buildings)');
