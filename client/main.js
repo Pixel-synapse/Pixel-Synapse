@@ -107,6 +107,7 @@ const gameState = {
   treeGroup:       null,  // staticGroup — trees
   buildingGroup:   null,  // staticGroup — buildings
   doorGroup:       null,  // staticGroup — door entry zones
+  _topObjects:     [],    // images with isTop=true — depth = y+1000 every frame
   _depthDebugText: null,  // HUD text updated every frame with player Y/depth
   _nearDoor:       null,  // door zone player is currently overlapping
   _gameHour:       8,     // current in-game hour — updated by updateGameClock
@@ -1245,6 +1246,7 @@ function applyTravelResult(msg) {
   gameState.treeGroup     = null;
   gameState.buildingGroup = null;
   gameState.doorGroup     = null;
+  gameState._topObjects   = [];
   gameState._nearDoor     = null;
   gameState._depthDebugText = null;
 
@@ -1982,30 +1984,33 @@ function spawnCityWorldObjects(scene) {
     gameState.treeGroup = scene.physics.add.staticGroup();
   }
 
-  console.log('[trees] Tree Layer Active — trunk Y-sorted · leaves always above player');
+  console.log('[trees] Tree Layer Active — trunk Y-sorted · leaves isTop depth=y+1000');
 
   treeTiles.forEach(([tx, ty]) => {
     const wx = tx * T + T / 2;
     const wy = ty * T + T / 2;
 
-    // ── TRUNK — Y-sorted with player ──
-    // When player Y > trunk Y → player renders in front (walked past the tree)
-    // When player Y < trunk Y → trunk renders in front (player behind tree)
-    const trunk = scene.add.image(wx, wy + 6, 'tree_trunk')
+    // ── TRUNK — Y-sorted with player, drawn at trunk centre ──
+    // depth = wy so trunk sorts correctly: player above trunk = player in front,
+    // player below trunk = trunk in front. Exactly like reference doc.
+    const trunk = scene.add.image(wx, wy + 4, 'tree_trunk')
       .setScale(2).setOrigin(0.5, 0.5);
-    trunk.setDepth(wy + 6);           // matches player depth system
+    trunk.setDepth(wy + 4);
     gameState.worldObjects.push(trunk);
 
-    // ── LEAVES — depth = wy + 300 ──
-    // Always renders above any player (max player Y ≈ 800, leaves at wy+300
-    // means leaves appear "over" the player whenever they're near the tree.
-    // The trunk below is Y-sorted, creating the illusion of walking behind.
-    const leaves = scene.add.image(wx, wy - 4, 'tree_leaves')
+    // ── LEAVES — isTop = true, depth updated to y+1000 every frame ──
+    // Leaves are positioned above the trunk (canopy). Because isTop is true,
+    // update() sets depth = leaves.y + 1000 every frame, which is always above
+    // any player depth (player max depth ≈ 800). This matches the reference doc:
+    //   this.children.list.forEach(obj => { if (obj.isTop) obj.setDepth(obj.y + 1000) })
+    const leaves = scene.add.image(wx, wy - 8, 'tree_leaves')
       .setScale(2).setOrigin(0.5, 0.5);
-    leaves.setDepth(wy + 300);        // always in front of player at same tile
+    leaves.isTop = true;              // flagged for dynamic depth in update()
+    leaves.setDepth(wy + 1000);       // initial value; update() keeps it current
     gameState.worldObjects.push(leaves);
+    gameState._topObjects.push(leaves);
 
-    // ── Collision body — trunk base only (6×8px at foot of trunk) ──
+    // ── Collision — trunk base only (12×8px) ──
     const body = scene.physics.add.staticImage(wx, wy + 10, null)
       .setVisible(false);
     body.setDisplaySize(12, 8);
@@ -2056,6 +2061,14 @@ function spawnCityWorldObjects(scene) {
     const depthRef = scene.add.rectangle(px + bw/2, py + bh, bw, 2, 0x000000, 0)
       .setDepth(py + bh);
     gameState.worldObjects.push(depthRef);
+
+    // Building roof marker — isTop so it always renders above the player
+    // when they are near the building base. y = py (top of building).
+    const roofMarker = scene.add.rectangle(px + bw/2, py, bw, 4, 0x000000, 0);
+    roofMarker.isTop = true;
+    roofMarker.setDepth(py + 1000);
+    gameState.worldObjects.push(roofMarker);
+    gameState._topObjects.push(roofMarker);
 
     // ── DOOR ZONE — overlap trigger at the base of each building ──
     // Placed right at the bottom edge of the building (where the door is drawn).
@@ -3062,6 +3075,12 @@ class GameScene extends Phaser.Scene {
     // ── Y-DEPTH SORTING — every frame ──
     sp.setDepth(sp.y);
     this.myNameTag.setDepth(sp.y + 1);
+
+    // isTop objects (tree leaves, building rooftops) always render above player.
+    // Matches reference doc: obj.isTop → obj.setDepth(obj.y + 1000)
+    for (const obj of gameState._topObjects) {
+      obj.setDepth(obj.y + 1000);
+    }
 
     // ── DOOR PROXIMITY — direct overlap check (reliable, matches reference doc) ──
     gameState._nearDoor = null;
