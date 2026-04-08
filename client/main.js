@@ -431,55 +431,79 @@ function updatePlayerList() {
 function drawMinimap() {
   const canvas = document.getElementById('minimap-canvas');
   const ctx = canvas.getContext('2d');
-  const sx = 100/WORLD_W, sy = 100/WORLD_H;
+  // Map is 50×50 tiles; minimap is 100×100px → 2px per tile
+  const scale = 100 / 50;  // 2px per tile
 
-  ctx.fillStyle = '#05050f';
-  ctx.fillRect(0,0,100,100);
+  // Background
+  ctx.fillStyle = '#68c040';  // grass green
+  ctx.fillRect(0, 0, 100, 100);
 
-  // Map zones
-  ctx.fillStyle = PAL.grassDark;  ctx.fillRect(5,5,22,22);   // park
-  ctx.fillStyle = PAL.wallBlue;   ctx.fillRect(62,5,22,18);  // NE buildings
-  ctx.fillStyle = PAL.wallGreen;  ctx.fillRect(5,62,20,18);  // SW buildings
-  ctx.fillStyle = PAL.wallMid;    ctx.fillRect(62,62,25,20); // SE buildings
-  ctx.fillStyle = PAL.sqPave;     ctx.fillRect(35,35,30,30); // town square
-  ctx.fillStyle = PAL.fountain;   ctx.fillRect(46,46,8,8);   // fountain
+  // ── TREE ZONES ──
+  ctx.fillStyle = '#50a030';
+  ctx.fillRect(2*scale, 2*scale, 7*scale, 9*scale);   // NW park
+  ctx.fillRect(35*scale,25*scale,11*scale,11*scale);  // SE forest
+  ctx.fillRect(40*scale, 3*scale, 9*scale, 8*scale);  // NE cluster
+  ctx.fillRect(2*scale, 34*scale, 8*scale, 8*scale);  // SW cluster
 
-  // Roads
-  ctx.fillStyle = '#221e18';
-  ctx.fillRect(47,0,6,100);
-  ctx.fillRect(0,47,100,6);
+  // ── MAIN ROADS — H at rows 30–31, V at cols 35–36 ──
+  ctx.fillStyle = '#e0c878';
+  ctx.fillRect(0, 30*scale, 100, 2*scale);  // horizontal
+  ctx.fillRect(35*scale, 0, 2*scale, 100);  // vertical
 
-  // ── Transit Hub — east edge at tile 44–50, row 22–28 ──
-  // Road connector from main horizontal road to station (tile col 44–50, row 25)
-  ctx.fillStyle = '#2a2218';
-  ctx.fillRect(90, 47, 10, 6); // extension of horizontal road to east edge
-  // Station building footprint
-  ctx.fillStyle = '#241824';
-  ctx.fillRect(90, 43, 10, 14);
-  ctx.fillStyle = '#3a2050';
-  ctx.fillRect(90, 43, 10, 3);   // roof strip
-  // Portal glow dot (animated-ish — always visible purple)
-  const phase = (Date.now() / 500) % (Math.PI * 2);
-  const gAlpha = 0.6 + Math.sin(phase) * 0.3;
-  ctx.fillStyle = `rgba(170, 102, 255, ${gAlpha.toFixed(2)})`;
-  ctx.fillRect(94, 52, 3, 4);    // portal position
-  // Label dot
-  ctx.fillStyle = '#aa66ff';
-  ctx.fillRect(92, 50, 1, 1);
+  // ── TOWN PLAZA — cobble rows 27–33, cols 32–38 ──
+  ctx.fillStyle = '#c8b860';
+  ctx.fillRect(32*scale, 27*scale, 7*scale, 7*scale);
+  // Fountain
+  ctx.fillStyle = '#3898f8';
+  ctx.fillRect(34*scale, 29*scale, 3*scale, 3*scale);
 
-  // NPCs
+  // ── NAMED BUILDINGS ──
+  ctx.fillStyle = '#e82020'; ctx.fillRect(5*scale, 5*scale, 6*scale, 5*scale);   // house_nw (red)
+  ctx.fillStyle = '#2848c0'; ctx.fillRect(36*scale, 5*scale, 6*scale, 5*scale);  // house_ne (blue)
+  ctx.fillStyle = '#c82018'; ctx.fillRect(5*scale, 36*scale, 7*scale, 5*scale);  // house_sw (red)
+  ctx.fillStyle = '#289048'; ctx.fillRect(36*scale,36*scale, 7*scale, 5*scale);  // shop_se (green)
+  // Townhall (gold)
+  ctx.fillStyle = '#f8a030'; ctx.fillRect(34*scale,25*scale, 5*scale, 5*scale);
+  // Shop district
+  ctx.fillStyle = '#289048';
+  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx,ty]) =>
+    ctx.fillRect(tx*scale, ty*scale, 5*scale, 4*scale));
+
+  // ── RESIDENTIAL BLOCKS — 4 quadrants ──
+  ctx.fillStyle = '#f0e8c0';
+  [[10,10],[10,40],[45,10],[45,40]].forEach(([bx,by]) => {
+    for (let r = 0; r < 3; r++)
+      for (let c = 0; c < 3; c++)
+        ctx.fillRect((bx+c*5)*scale, (by+r*5)*scale, 4*scale, 4*scale);
+  });
+  // Explicit house positions row
+  const housePositionsMM = [
+    [10,12],[16,12],[22,12],[28,12],[40,12],[46,12],
+    [10,34],[16,34],[22,34],[28,34],[40,34],[46,34],
+  ];
+  housePositionsMM.forEach(([tx,ty]) =>
+    ctx.fillRect(tx*scale, ty*scale, 4*scale, 4*scale));
+
+  // ── PLAYER DOT ──
+  if (gameState.myX !== undefined) {
+    const mx = gameState.myX / WORLD_W * 100;
+    const my = gameState.myY / WORLD_H * 100;
+    ctx.fillStyle = '#f8f8f8';
+    ctx.fillRect(mx - 2, my - 2, 4, 4);
+    ctx.fillStyle = '#f8d030';
+    ctx.fillRect(mx - 1, my - 1, 2, 2);
+  }
+  // ── NPC DOTS ──
+  const scale2 = 100 / WORLD_W;  // px per world unit (WORLD_W=800, canvas=100)
   for (const npc of gameState.npcs) {
     ctx.fillStyle = npc.color || '#ffffff';
-    ctx.fillRect(Math.floor(npc.x*sx)-1, Math.floor(npc.y*sy)-1, 3,3);
+    ctx.fillRect(Math.floor(npc.x * scale2) - 1, Math.floor(npc.y * scale2) - 1, 3, 3);
   }
   // Other players
   for (const p of Object.values(gameState.players)) {
     ctx.fillStyle = p.color || PAL.interact;
-    ctx.fillRect(Math.floor(p.x*sx)-1, Math.floor(p.y*sy)-1, 3,3);
+    ctx.fillRect(Math.floor(p.x * scale2) - 1, Math.floor(p.y * scale2) - 1, 3, 3);
   }
-  // Local player (white, 4×4)
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(Math.floor(gameState.myX*sx)-2, Math.floor(gameState.myY*sy)-2, 4,4);
 }
 
 // ─────────────────────────────────────────────
@@ -1764,115 +1788,15 @@ function createTextures(scene) {
   ctx.strokeRect(34*S, 29*S, 3*S, 3*S);
 
   // ── 4. BUILDINGS ──
-  // Compact inline drawBuilding (same renderer as before)
-  function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label, variant) {
-    const px = tx * S, py = ty * S;
-    const bw = tw * S, bh = th * S;
-    const roofH = Math.floor(S * 1.8);
-    // Wall
-    ctx.fillStyle = wallColor; ctx.fillRect(px, py, bw, bh);
-    ctx.fillStyle = darkenHex(wallColor, 10);
-    for (let wy2 = py+roofH+6; wy2 < py+bh-4; wy2 += 7) ctx.fillRect(px+2, wy2, bw-4, 1);
-    ctx.fillStyle = darkenHex(wallColor, 18);
-    ctx.fillRect(px, py, 2, bh); ctx.fillRect(px, py+bh-2, bw, 2);
-    ctx.fillStyle = lightenHex(wallColor, 22); ctx.fillRect(px+2, py+roofH, bw-4, 2);
-    // Roof
-    if (variant === 'shop' || variant === 'townhall') {
-      ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
-      ctx.fillStyle = darkenHex(roofColor, 15);
-      for (let cx2 = px+3; cx2 < px+bw-3; cx2 += 8) ctx.fillRect(cx2, py, 4, 5);
-      if (variant === 'townhall') {
-        // Flag pole
-        ctx.fillStyle = '#808080'; ctx.fillRect(px+bw/2-1, py-12, 2, 14);
-        ctx.fillStyle = '#f8d030'; ctx.fillRect(px+bw/2+1, py-12, 8, 6);
-      }
-      const aw = py+roofH;
-      for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = i%2===0 ? roofColor : lightenHex(roofColor, 30);
-        ctx.fillRect(px+4, aw+i*3, bw-8, 3);
-      }
-      const signW = bw-16;
-      ctx.fillStyle = darkenHex(roofColor, 5); ctx.fillRect(px+8, py+roofH+14, signW, 12);
-      ctx.strokeStyle = lightenHex(roofColor, 25); ctx.lineWidth = 1;
-      ctx.strokeRect(px+8, py+roofH+14, signW, 12);
-      ctx.fillStyle = '#f8f8f8';
-      ctx.font = '6px "Press Start 2P", monospace'; ctx.textAlign = 'center';
-      ctx.fillText(variant === 'townhall' ? 'HALL' : 'SHOP', px+bw/2, py+roofH+23);
-    } else {
-      ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
-      ctx.fillStyle = darkenHex(roofColor, 12);
-      for (let row = 0; row < roofH; row += 4) {
-        const off = (row/4)%2===0 ? 0 : 5;
-        for (let cx2 = px+off; cx2 < px+bw; cx2 += 10) ctx.fillRect(cx2, py+row, 8, 3);
-      }
-      ctx.fillStyle = lightenHex(roofColor, 30); ctx.fillRect(px+4, py, bw-8, 2);
-      ctx.fillStyle = darkenHex(roofColor, 22); ctx.fillRect(px, py+roofH-2, bw, 3);
-      const chX = px+bw-18;
-      ctx.fillStyle = '#888070'; ctx.fillRect(chX, py-8, 8, roofH+2);
-      ctx.fillStyle = '#606050'; ctx.fillRect(chX-1, py-10, 10, 4);
-      ctx.fillStyle = 'rgba(200,200,200,0.45)';
-      ctx.beginPath(); ctx.arc(chX+3, py-16, 4, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(chX+7, py-20, 3, 0, Math.PI*2); ctx.fill();
-    }
-    // Windows
-    const winY = py+roofH+8;
-    if (variant === 'shop' || variant === 'townhall') {
-      const ww = bw-24, wh = 22;
-      ctx.fillStyle = '#b8e8ff'; ctx.fillRect(px+12, winY, ww, wh);
-      ctx.fillStyle = '#e8f8ff'; ctx.fillRect(px+14, winY+2, 6, wh-4);
-      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px+12, winY, ww, wh);
-      ctx.fillStyle = '#181018'; ctx.fillRect(px+12+ww/2-1, winY, 2, wh);
-    } else {
-      const positions = tw >= 7 ? [px+8, px+bw/2-5, px+bw-22] : [px+8, px+bw-22];
-      positions.forEach(wx2 => {
-        ctx.fillStyle = '#b8e0ff'; ctx.fillRect(wx2, winY, 12, 10);
-        ctx.fillStyle = roofColor; ctx.fillRect(wx2, winY, 4, 10); ctx.fillRect(wx2+8, winY, 4, 10);
-        ctx.fillStyle = '#e0f4ff'; ctx.fillRect(wx2+4, winY+1, 4, 3);
-        ctx.fillStyle = '#181018';
-        ctx.fillRect(wx2+5, winY, 2, 10); ctx.fillRect(wx2, winY+4, 12, 1);
-        ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(wx2, winY, 12, 10);
-      });
-    }
-    // Door
-    const doorW  = (variant==='shop'||variant==='townhall') ? 16 : 12;
-    const doorH2 = (variant==='shop'||variant==='townhall') ? 24 : 18;
-    const dx = px+Math.floor(bw/2)-Math.floor(doorW/2), dy = py+bh-doorH2;
-    ctx.fillStyle = darkenHex(wallColor, 20); ctx.fillRect(dx-2, dy-2, doorW+4, doorH2+2);
-    ctx.fillStyle = '#c07030'; ctx.fillRect(dx, dy, doorW, doorH2);
-    ctx.fillStyle = '#a05020';
-    ctx.fillRect(dx+2, dy+2, doorW-4, doorH2/2-3); ctx.fillRect(dx+2, dy+doorH2/2+1, doorW-4, doorH2/2-3);
-    ctx.fillStyle = '#804010'; ctx.fillRect(dx, dy, 2, doorH2);
-    ctx.fillStyle = '#f8d030'; ctx.fillRect(dx+doorW-4, dy+Math.floor(doorH2*0.55), 3, 3);
-    ctx.fillStyle = darkenHex(wallColor, 25); ctx.fillRect(dx-3, py+bh-2, doorW+6, 2);
-    ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px, py, bw, bh);
-    if (label && variant !== 'shop' && variant !== 'townhall') {
-      const sw = label.length*5+10;
-      ctx.fillStyle = darkenHex(roofColor, 8); ctx.fillRect(px+bw/2-sw/2, py-10, sw, 10);
-      ctx.strokeStyle = lightenHex(roofColor, 20); ctx.lineWidth = 1;
-      ctx.strokeRect(px+bw/2-sw/2, py-10, sw, 10);
-      ctx.fillStyle = '#f8f8f8';
-      ctx.font = '5px "Press Start 2P", monospace'; ctx.textAlign = 'center';
-      ctx.fillText(label, px+bw/2, py-2);
-    }
-    // Mark tiles as occupied
-    for (let oty = ty; oty < ty+th; oty++)
-      for (let otx = tx; otx < tx+tw; otx++) occupied.add(`${otx},${oty}`);
-  }
-
-  // ── 4a. NAMED BUILDINGS (fixed — for interior system) ──
-  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', 'HOME',    'house_red');
-  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#e8eaf8', 'HOUSE',   'house_blue');
-  drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S", 'house_red');
-  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',    'shop');
-
-  // ── 4b. TOWNHALL — at plaza centre ──
-  drawBuilding(ctx, 34, 25, 5, 5, '#f8a030', '#f8f0e0', 'HALL', 'townhall');
-
-  // ── 4c. SHOP DISTRICT — flanking the plaza ──
-  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) => {
-    if (!roadSet.has(`${tx2},${ty2}`) && !occupied.has(`${tx2},${ty2}`))
-      drawBuilding(ctx, tx2, ty2, 5, 4, '#289048', '#e8f8e8', '', 'shop');
-  });
+  // Building art is rendered as real Phaser image objects in spawnCityWorldObjects().
+  // We only mark occupied tiles here so trees don't spawn on building footprints.
+  // (occupied Set was declared above with roadSet)
+  const markOcc = (tx, ty, tw, th) => {
+    for (let r = 0; r < th; r++) for (let c = 0; c < tw; c++) occupied.add(`${tx+c},${ty+r}`);
+  };
+  markOcc(5,5,6,5); markOcc(36,5,6,5); markOcc(5,36,7,5); markOcc(36,36,7,5);
+  markOcc(34,25,5,5);  // townhall
+  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) => markOcc(tx2,ty2,5,4));
 
   // ── 4d. HOUSES — explicit positions array (reference doc pattern) ──
   // Three types: red / blue / green, placed at clean fixed coordinates.
@@ -1961,6 +1885,94 @@ function createTextures(scene) {
     t.refresh();
   }
   console.log('[createTextures] ✓ Player textures:', Object.keys(playerFrames).join(', '));
+
+  // ── BUILDING VARIANT TEXTURES ──
+  // Each variant gets a standalone canvas texture so buildings can be placed
+  // as real Phaser image objects (visible, depth-sorted) rather than baked
+  // into the invisible worldmap canvas.
+  // Size: 64×64 pixels (4 tiles × 16px) — displayed at scale=2 → 128×128px
+  const BLDG_W = 64, BLDG_H = 64;
+  const buildingVariantDefs = [
+    { key:'house_red',   roofCol:'#e82020', wallCol:'#f0e8c0', variant:'house_red'   },
+    { key:'house_blue',  roofCol:'#2848c0', wallCol:'#e8eaf8', variant:'house_blue'  },
+    { key:'house_green', roofCol:'#289048', wallCol:'#e8f8e0', variant:'house_green' },
+    { key:'shop_tex',    roofCol:'#289048', wallCol:'#e8f8e8', variant:'shop'        },
+    { key:'townhall_tex',roofCol:'#f8a030', wallCol:'#f8f0e0', variant:'townhall'    },
+  ];
+
+  // Mini drawBuilding that renders into a standalone canvas at 1:1 (no tile coords)
+  function drawBuildingTex(ctx2, w, h, roofCol, wallCol, variant) {
+    const roofH = Math.floor(h * 0.36);
+    // Wall
+    ctx2.fillStyle = wallCol; ctx2.fillRect(0, 0, w, h);
+    ctx2.fillStyle = darkenHex(wallCol, 10);
+    for (let wy2 = roofH + 4; wy2 < h - 3; wy2 += 7) ctx2.fillRect(1, wy2, w-2, 1);
+    ctx2.fillStyle = darkenHex(wallCol, 18);
+    ctx2.fillRect(0, 0, 2, h); ctx2.fillRect(0, h-2, w, 2);
+    ctx2.fillStyle = lightenHex(wallCol, 22); ctx2.fillRect(1, roofH, w-2, 2);
+    // Roof
+    ctx2.fillStyle = roofCol; ctx2.fillRect(0, 0, w, roofH);
+    if (variant === 'shop' || variant === 'townhall') {
+      ctx2.fillStyle = darkenHex(roofCol, 15);
+      for (let cx2 = 2; cx2 < w-2; cx2 += 8) ctx2.fillRect(cx2, 0, 4, 4);
+      if (variant === 'townhall') {
+        ctx2.fillStyle = '#808080'; ctx2.fillRect(w/2-1, -6, 2, 8);
+        ctx2.fillStyle = '#f8d030'; ctx2.fillRect(w/2+1, -6, 7, 5);
+      }
+    } else {
+      ctx2.fillStyle = darkenHex(roofCol, 12);
+      for (let row = 0; row < roofH; row += 4) {
+        const off = (row/4)%2===0 ? 0 : 4;
+        for (let cx2 = off; cx2 < w; cx2 += 10) ctx2.fillRect(cx2, row, 8, 3);
+      }
+      ctx2.fillStyle = lightenHex(roofCol, 30); ctx2.fillRect(3, 0, w-6, 2);
+      ctx2.fillStyle = darkenHex(roofCol, 22); ctx2.fillRect(0, roofH-2, w, 2);
+      // Chimney
+      ctx2.fillStyle = '#888070'; ctx2.fillRect(w-14, -5, 7, roofH+2);
+      ctx2.fillStyle = '#606050'; ctx2.fillRect(w-15, -7, 9, 3);
+      ctx2.fillStyle = 'rgba(200,200,200,0.45)';
+      ctx2.beginPath(); ctx2.arc(w-11, -10, 3, 0, Math.PI*2); ctx2.fill();
+    }
+    // Windows
+    const winY = roofH + 6;
+    if (variant === 'shop' || variant === 'townhall') {
+      ctx2.fillStyle = '#b8e8ff'; ctx2.fillRect(8, winY, w-16, 14);
+      ctx2.fillStyle = '#e8f8ff'; ctx2.fillRect(10, winY+2, 5, 10);
+      ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(8, winY, w-16, 14);
+      ctx2.fillStyle = '#181018'; ctx2.fillRect(w/2-1, winY, 2, 14);
+    } else {
+      [[6, winY], [w-18, winY]].forEach(([wx2, wy2]) => {
+        ctx2.fillStyle = '#b8e0ff'; ctx2.fillRect(wx2, wy2, 12, 9);
+        ctx2.fillStyle = roofCol; ctx2.fillRect(wx2, wy2, 3, 9); ctx2.fillRect(wx2+9, wy2, 3, 9);
+        ctx2.fillStyle = '#e0f4ff'; ctx2.fillRect(wx2+3, wy2+1, 6, 3);
+        ctx2.fillStyle = '#181018';
+        ctx2.fillRect(wx2+5, wy2, 2, 9); ctx2.fillRect(wx2, wy2+4, 12, 1);
+        ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(wx2, wy2, 12, 9);
+      });
+    }
+    // Door
+    const dw = variant==='shop'||variant==='townhall' ? 14 : 10;
+    const dh = variant==='shop'||variant==='townhall' ? 20 : 16;
+    const dx = Math.floor(w/2) - Math.floor(dw/2), dy = h - dh;
+    ctx2.fillStyle = darkenHex(wallCol, 20); ctx2.fillRect(dx-2, dy-2, dw+4, dh+2);
+    ctx2.fillStyle = '#c07030'; ctx2.fillRect(dx, dy, dw, dh);
+    ctx2.fillStyle = '#a05020';
+    ctx2.fillRect(dx+2, dy+2, dw-4, dh/2-3); ctx2.fillRect(dx+2, dy+dh/2+1, dw-4, dh/2-3);
+    ctx2.fillStyle = '#804010'; ctx2.fillRect(dx, dy, 2, dh);
+    ctx2.fillStyle = '#f8d030'; ctx2.fillRect(dx+dw-4, dy+Math.floor(dh*0.55), 3, 3);
+    ctx2.fillStyle = darkenHex(wallCol, 25); ctx2.fillRect(dx-3, h-2, dw+6, 2);
+    ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(0, 0, w, h);
+  }
+
+  buildingVariantDefs.forEach(({ key, roofCol, wallCol, variant }) => {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+    const btex = scene.textures.createCanvas(key, BLDG_W, BLDG_H);
+    const bctx = btex.getContext();
+    bctx.imageSmoothingEnabled = false;
+    drawBuildingTex(bctx, BLDG_W, BLDG_H, roofCol, wallCol, variant);
+    btex.refresh();
+  });
+  console.log('[createTextures] ✓ Building textures: house_red, house_blue, house_green, shop_tex, townhall_tex');
 
   // ── NPC BASE SPRITE (fallback, gray) ──
   if (scene.textures.exists('npc_base')) scene.textures.remove('npc_base');
@@ -2129,38 +2141,44 @@ function spawnCityWorldObjects(scene) {
     const px = b.tx * T, py = b.ty * T;
     const bw = b.tw * T, bh = b.th * T;
 
-    // Collision body — smaller than the full building so the player
-    // can reach the door at the base without being stopped by the wall.
-    // Strategy: cover only the upper 60% of the building (roof+wall).
-    // The bottom ~40% (where the door is) stays open for overlap.
-    const collH  = Math.round(bh * 0.62);   // collision covers top 62%
-    const collY  = py + collH / 2;           // centred on that region
+    // ── VISIBLE BUILDING IMAGE — base (Y-sorted with player) ──
+    // Displayed at scale so our 64px canvas texture fills the building footprint.
+    // scaleX = bw/64, scaleY = bh/64
+    const texKey = b.id === 'shop_se' ? 'shop_tex'
+                 : b.id === 'house_nw' || b.id === 'house_sw' ? 'house_red'
+                 : b.id === 'house_ne' ? 'house_blue'
+                 : 'house_red';
+    const baseImg = scene.add.image(px, py, texKey)
+      .setOrigin(0, 0)
+      .setDisplaySize(bw, bh)
+      .setDepth(py + bh);  // bottom edge of building — Y-sorted
+    gameState.worldObjects.push(baseImg);
+
+    // ── ROOF IMAGE — isTop, always above player ──
+    // Upper 40% of building = the roof portion.
+    const roofH = Math.round(bh * 0.4);
+    const roofImg = scene.add.image(px, py, texKey)
+      .setOrigin(0, 0)
+      .setDisplaySize(bw, roofH)
+      .setCrop(0, 0, 64, Math.round(64 * 0.4));
+    roofImg.isTop = true;
+    roofImg.setDepth(py + 1000);
+    gameState.worldObjects.push(roofImg);
+    gameState._topObjects.push(roofImg);
+
+    // Collision body — upper 62% (player can reach door at base)
+    const collH  = Math.round(bh * 0.62);
+    const collY  = py + collH / 2;
     const body   = scene.physics.add.staticImage(px + bw/2, collY, null)
       .setVisible(false);
-    body.setDisplaySize(bw - 4, collH);      // 4px narrower than visual
+    body.setDisplaySize(bw - 4, collH);
     body.refreshBody();
     gameState.worldObjects.push(body);
     gameState.buildingGroup.add(body);
 
-    // Depth marker at building bottom edge
-    const depthRef = scene.add.rectangle(px + bw/2, py + bh, bw, 2, 0x000000, 0)
-      .setDepth(py + bh);
-    gameState.worldObjects.push(depthRef);
-
-    // Building roof marker — isTop so it always renders above the player
-    // when they are near the building base. y = py (top of building).
-    const roofMarker = scene.add.rectangle(px + bw/2, py, bw, 4, 0x000000, 0);
-    roofMarker.isTop = true;
-    roofMarker.setDepth(py + 1000);
-    gameState.worldObjects.push(roofMarker);
-    gameState._topObjects.push(roofMarker);
-
-    // ── DOOR ZONE — overlap trigger at the base of each building ──
-    // Placed right at the bottom edge of the building (where the door is drawn).
-    // Uses staticGroup.create() for reliable Phaser overlap detection.
-    // Size is generous (36×24) so the player doesn't have to pixel-perfect align.
+    // ── DOOR ZONE ──
     const doorX = px + bw / 2;
-    const doorY = py + bh;                   // flush with the bottom of the building
+    const doorY = py + bh;
 
     const door = gameState.doorGroup.create(doorX, doorY, null);
     door.setSize(36, 24);
@@ -2187,17 +2205,29 @@ function spawnCityWorldObjects(scene) {
     // Plaza
     for (let ty = 27; ty <= 33; ty++) for (let tx = 32; tx <= 38; tx++) roadSet2.add(`${tx},${ty}`);
 
-    // Helper: add collision + isTop + door for any building
-    function addBldgCollider(tx2, ty2, tw, th, houseId, houseLabel) {
+    // Helper: add visible image + collision + isTop roof + door for any building
+    function addBldgCollider(tx2, ty2, tw, th, houseId, houseLabel, texKey) {
       if (roadSet2.has(`${tx2},${ty2}`)) return;
       const px = tx2*T, py = ty2*T, bw = tw*T, bh = th*T;
+      const key = texKey || 'house_red';
+
+      // Visible base image — Y-sorted
+      const bi = scene.add.image(px, py, key).setOrigin(0,0).setDisplaySize(bw, bh).setDepth(py+bh);
+      gameState.worldObjects.push(bi);
+
+      // Roof image — isTop
+      const ri = scene.add.image(px, py, key).setOrigin(0,0).setDisplaySize(bw, Math.round(bh*0.4))
+        .setCrop(0,0,64,Math.round(64*0.4));
+      ri.isTop=true; ri.setDepth(py+1000);
+      gameState.worldObjects.push(ri); gameState._topObjects.push(ri);
+
+      // Collision
       const collH = Math.round(bh*0.62);
       const cb = scene.physics.add.staticImage(px+bw/2, py+collH/2, null).setVisible(false);
       cb.setDisplaySize(bw-4, collH); cb.refreshBody();
       gameState.worldObjects.push(cb); gameState.buildingGroup.add(cb);
-      const rm = scene.add.rectangle(px+bw/2, py, bw, 4, 0x000000, 0);
-      rm.isTop=true; rm.setDepth(py+1000);
-      gameState.worldObjects.push(rm); gameState._topObjects.push(rm);
+
+      // Door
       const dz = gameState.doorGroup.create(px+bw/2, py+bh, null);
       dz.setSize(36,24).setOrigin(0.5,0.5).setVisible(false).refreshBody();
       dz.houseId=houseId; dz.houseLabel=houseLabel;
@@ -2205,12 +2235,26 @@ function spawnCityWorldObjects(scene) {
       gameState.worldObjects.push(dz);
     }
 
+    // ── HOUSE POSITIONS (explicit array — matches createTextures housePositions) ──
+    const housePositions2 = [
+      [10,12,'house_red'],[16,12,'house_blue'],[22,12,'house_green'],
+      [28,12,'house_red'],[40,12,'house_blue'],[46,12,'house_green'],
+      [10,34,'house_blue'],[16,34,'house_red'],[22,34,'house_green'],
+      [28,34,'house_blue'],[40,34,'house_green'],[46,34,'house_red'],
+    ];
+    housePositions2.forEach(([tx2,ty2,type]) => {
+      if (!roadSet2.has(`${tx2},${ty2}`))
+        addBldgCollider(tx2, ty2, 4, 4,
+          type==='house_blue'?'house_ne':'house_nw',
+          type==='house_red'?'HOME':'HOUSE', type);
+    });
+
     // ── TOWNHALL ──
-    addBldgCollider(34, 25, 5, 5, 'shop_se', 'TOWN HALL');
+    addBldgCollider(34, 25, 5, 5, 'shop_se', 'TOWN HALL', 'townhall_tex');
 
     // ── SHOP DISTRICT ──
     [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) =>
-      addBldgCollider(tx2, ty2, 5, 4, 'shop_se', 'SHOP'));
+      addBldgCollider(tx2, ty2, 5, 4, 'shop_se', 'SHOP', 'shop_tex'));
 
     // ── RESIDENTIAL BLOCKS (createBlock: 3×3, spacing=5) ──
     const rngB2 = (n) => { let x = Math.sin(n*47.3)*43758.5; return x-Math.floor(x); };
@@ -2224,7 +2268,7 @@ function spawnCityWorldObjects(scene) {
           const vi = Math.floor(rngB2(bSeed2)*3);
           const v = ['house_red','house_blue','house_green'][vi];
           const hId = v==='house_blue' ? 'house_ne' : v==='house_green' ? 'house_sw' : 'house_nw';
-          addBldgCollider(wx, wy, 4, 4, hId, v==='house_red'?'HOME':'HOUSE');
+          addBldgCollider(wx, wy, 4, 4, hId, v==='house_red'?'HOME':'HOUSE', v);
         }
       }
     });
@@ -2234,12 +2278,23 @@ function spawnCityWorldObjects(scene) {
   // WORLD LABELS (floating text over locations)
   // ════════════════════════════════════════════════
 
+  // WORLD LABELS — positions match actual building tile coords × T (T=16px)
+  // house_nw: tiles 5-10,5-9  → label above at (8*T, 5*T)
+  // house_ne: tiles 36-41,5-9 → label above at (39*T, 5*T)
+  // house_sw: tiles 5-11,36-40 → label above at (8*T, 36*T)
+  // shop_se:  tiles 36-42,36-40 → label above at (39*T, 36*T)
+  // townhall: tiles 34-38,25-29 → label above at (36*T, 25*T)
+  // plaza:    tiles 32-38,27-33 → label at centre (35*T, 27*T)
   const WORLD_LABELS = [
-    [5*T + 3*T,   4*T,   'HOUSE',   '#f8d030', null],
-    [36*T + 3*T,  4*T,   'HOUSE',   '#3878f8', null],
-    [5*T + 3.5*T, 35*T,  'HOME',    '#f8d030', null],
-    [36*T + 3.5*T,35*T,  'SHOP',    '#78c850', 'Buy · Sell'],
-    [24.5*T,      19*T,  'TOWN SQ', '#f8f8f8', 'Events · Gossip'],
+    [8*T,    5*T,  'HOME',      '#f8d030', null              ],
+    [39*T,   5*T,  'HOUSE',     '#3878f8', null              ],
+    [8*T,   36*T,  "ELDER'S",   '#f8a030', null              ],
+    [39*T,  36*T,  'SHOP',      '#78c850', 'Buy · Sell'      ],
+    [35*T,  25*T,  'TOWN HALL', '#f8d030', 'Vote · Govern'   ],
+    [35*T,  27*T,  'PLAZA',     '#f8f8f8', 'Events · Gossip' ],
+    // Explicit house row labels (north + south streets)
+    [19*T,  12*T,  'NORTH ST',  '#c0c8d0', null              ],
+    [19*T,  34*T,  'SOUTH ST',  '#c0c8d0', null              ],
   ];
   for (const [wx, wy, text, color, sub] of WORLD_LABELS) {
     const t = scene.add.text(wx, wy, text, {
@@ -2258,9 +2313,14 @@ function spawnCityWorldObjects(scene) {
   }
 
   // ── ZONE MARKERS ──
+  // ── ZONE MARKERS — circles highlight interactive areas ──
+  // Plaza centre: tile 35,30 = px (35*T, 30*T) = (560, 480)
+  // Shop_se centre: tile ~39,38 = px (624, 608)
+  // Townhall centre: tile ~36,27 = px (576, 432)
   const ZONE_MARKERS = [
-    [24.5*T, 24.5*T, 20, 0xf8d030, 'SQUARE'],
-    [36*T+3.5*T, 41*T, 18, 0x78c850, 'SHOP'],
+    [35*T, 30*T, 28, 0xf8d030, 'SQUARE'],   // plaza
+    [39*T, 38*T, 24, 0x78c850, 'SHOP'  ],   // shop district
+    [36*T, 27*T, 22, 0xf8a030, 'HALL'  ],   // townhall
   ];
   const mgfx = _addWorldGfx(scene, 2);
   for (const [cx, cy, r, col, lbl] of ZONE_MARKERS) {
@@ -3121,9 +3181,9 @@ class GameScene extends Phaser.Scene {
 
     // ── 1. Check proximity-zone markers first (Town Hall, Market, Transit) ──
     const ZONE_TRIGGERS = [
-      { cx: 312, cy: 96,  r: 40, action: 'vote',   label: 'Town Hall' },
-      { cx: 624, cy: 608, r: 40, action: 'trade',  label: 'Market'    },
-      { cx: 752, cy: 430, r: 50, action: 'travel', label: 'Transit Hub' },
+      { cx: 36*T, cy: 27*T, r: 48, action: 'vote',   label: 'Town Hall'   },  // townhall: tile 36,27
+      { cx: 39*T, cy: 38*T, r: 44, action: 'trade',  label: 'Market'      },  // shop_se: tile 39,38
+      { cx: 752,  cy: 430,  r: 50, action: 'travel',  label: 'Transit Hub' },  // east edge portal
     ];
     for (const zone of ZONE_TRIGGERS) {
       const d = Phaser.Math.Distance.Between(px, py, zone.cx, zone.cy);
