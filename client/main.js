@@ -1623,262 +1623,231 @@ function createTextures(scene) {
   const worldGfx = scene.textures.createCanvas('worldmap', WORLD_W, WORLD_H);
   const ctx = worldGfx.getContext();
 
-  // ════════════════════════════════════════════
-  // GBA POKÉMON STARTER TOWN — "Pixel Town"
-  // Map: 800×800px, TILE_SIZE=16, so 50×50 tiles
-  // Layout:
-  //   • Bright grass base everywhere
-  //   • Tree border (2 tiles deep) all edges
-  //   • Horizontal path: rows 24–25 (centre)
-  //   • Vertical path:   cols 24–25 (centre)
-  //   • Town square:     cobble at intersection (tiles 21–28)
-  //   • Houses at NW, NE, SW quadrants
-  //   • Shop at SE quadrant
-  //   • Decorative trees scattered inside
-  // ════════════════════════════════════════════
+  // ════════════════════════════════════════════════════════
+  // PIXEL SYNAPSE TOWN — Road grid + procedural buildings
+  // Map: 800×800px, TILE_SIZE=16, 50×50 tiles
+  // Road grid every 8 tiles (horizontal + vertical)
+  // Buildings placed at grid intersections (avoiding roads)
+  // ════════════════════════════════════════════════════════
+
+  const COLS = WORLD_W / TILE_SIZE;  // 50
+  const ROWS = WORLD_H / TILE_SIZE;  // 50
+  const S    = TILE_SIZE;
 
   // ── 1. GRASS BASE ──
-  for (let ty = 0; ty < WORLD_H / TILE_SIZE; ty++) {
-    for (let tx = 0; tx < WORLD_W / TILE_SIZE; tx++) {
-      drawGrassTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
+  for (let ty = 0; ty < ROWS; ty++) {
+    for (let tx = 0; tx < COLS; tx++) {
+      drawGrassTile(ctx, tx * S, ty * S);
     }
   }
 
-  // ── 2. PATHS (bright GBA sand) ──
-  // Horizontal path — rows 23–26
-  for (let tx = 0; tx < WORLD_W / TILE_SIZE; tx++) {
-    for (let ty = 23; ty <= 26; ty++) drawRoadTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
-  }
-  // Vertical path — cols 23–26
-  for (let ty = 0; ty < WORLD_H / TILE_SIZE; ty++) {
-    for (let tx = 23; tx <= 26; tx++) drawRoadTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
+  // ── 2. ROAD GRID — every 8 tiles, horizontal + vertical ──
+  // Build a Set of road tile coords so buildings and trees can avoid them
+  const roadSet = new Set();
+  const ROAD_EVERY = 8;
+  for (let tx = 0; tx < COLS; tx++) {
+    for (let ty = 0; ty < ROWS; ty++) {
+      if (tx % ROAD_EVERY === 0 || ty % ROAD_EVERY === 0) {
+        drawRoadTile(ctx, tx * S, ty * S);
+        roadSet.add(`${tx},${ty}`);
+      }
+    }
   }
 
-  // ── 3. TOWN SQUARE — cobble at intersection ──
+  // ── 3. TOWN SQUARE — cobble at the central road intersection ──
+  // Centre intersection at tile 24,24 (nearest road-grid cross)
   for (let ty = 21; ty <= 28; ty++) {
     for (let tx = 21; tx <= 28; tx++) {
-      drawCobbleTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
+      drawCobbleTile(ctx, tx * S, ty * S);
+      roadSet.add(`${tx},${ty}`);
     }
   }
-  // Square border line
-  ctx.strokeStyle = '#b09040';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(21 * TILE_SIZE + 1, 21 * TILE_SIZE + 1, 8 * TILE_SIZE - 2, 8 * TILE_SIZE - 2);
-
-  // Fountain in centre of square
+  ctx.strokeStyle = '#b09040'; ctx.lineWidth = 2;
+  ctx.strokeRect(21*S+1, 21*S+1, 8*S-2, 8*S-2);
+  // Fountain in centre
   for (let ty = 23; ty <= 25; ty++) {
     for (let tx = 23; tx <= 25; tx++) {
-      drawWaterTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
+      drawWaterTile(ctx, tx * S, ty * S);
     }
   }
-  // Fountain rim (bright outline)
-  ctx.strokeStyle = '#f0d890';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(23 * TILE_SIZE, 23 * TILE_SIZE, 3 * TILE_SIZE, 3 * TILE_SIZE);
+  ctx.strokeStyle = '#f0d890'; ctx.lineWidth = 2;
+  ctx.strokeRect(23*S, 23*S, 3*S, 3*S);
 
-  // ── 4. BUILDINGS (drawn into canvas — NO Phaser objects yet) ──
-  // These are just the ground-floor visual. Phaser objects with depth/collision
-  // are added in spawnCityWorldObjects() and the GameScene.
-  //
-  // Pokémon-style: cream walls, bright red/blue roofs, windows, door
-
-  // ── Building renderer — each type has its own distinct GBA Pokémon style ──
+  // ── 4. BUILDINGS ──
+  // Building renderer (variant-aware) — defined inline here
   function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label, variant) {
-    const px = tx * TILE_SIZE, py = ty * TILE_SIZE;
-    const bw = tw * TILE_SIZE, bh = th * TILE_SIZE;
-    const roofH = Math.floor(TILE_SIZE * 1.8);
-    const S = TILE_SIZE;
+    const px = tx * S, py = ty * S;
+    const bw = tw * S, bh = th * S;
+    const roofH = Math.floor(S * 1.8);
 
-    // ── WALL ──
+    // Wall
     ctx.fillStyle = wallColor;
     ctx.fillRect(px, py, bw, bh);
-    // Horizontal brick lines on lower wall
     ctx.fillStyle = darkenHex(wallColor, 10);
-    for (let wy = py + roofH + 6; wy < py + bh - 4; wy += 7) {
-      ctx.fillRect(px + 2, wy, bw - 4, 1);
-    }
-    // Wall shadow L+B
+    for (let wy2 = py + roofH + 6; wy2 < py + bh - 4; wy2 += 7)
+      ctx.fillRect(px + 2, wy2, bw - 4, 1);
     ctx.fillStyle = darkenHex(wallColor, 18);
     ctx.fillRect(px, py, 2, bh);
     ctx.fillRect(px, py + bh - 2, bw, 2);
-    // Wall highlight top
     ctx.fillStyle = lightenHex(wallColor, 22);
     ctx.fillRect(px + 2, py + roofH, bw - 4, 2);
 
-    // ── ROOF — distinct per variant ──
+    // Roof
     if (variant === 'shop') {
-      // Flat roof with parapet and striped awning
-      ctx.fillStyle = roofColor;
-      ctx.fillRect(px, py, bw, roofH);
-      // Parapet crenellations
+      ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
       ctx.fillStyle = darkenHex(roofColor, 15);
-      for (let cx2 = px + 3; cx2 < px + bw - 3; cx2 += 8) {
-        ctx.fillRect(cx2, py, 4, 5);
-      }
-      // Awning stripes below roof
+      for (let cx2 = px + 3; cx2 < px + bw - 3; cx2 += 8) ctx.fillRect(cx2, py, 4, 5);
       const aw = py + roofH;
       for (let i = 0; i < 4; i++) {
         ctx.fillStyle = i % 2 === 0 ? roofColor : lightenHex(roofColor, 30);
         ctx.fillRect(px + 4, aw + i * 3, bw - 8, 3);
       }
-      // Shop sign board
       const signW = bw - 16;
       ctx.fillStyle = darkenHex(roofColor, 5);
       ctx.fillRect(px + 8, py + roofH + 14, signW, 12);
-      ctx.strokeStyle = lightenHex(roofColor, 25);
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = lightenHex(roofColor, 25); ctx.lineWidth = 1;
       ctx.strokeRect(px + 8, py + roofH + 14, signW, 12);
       ctx.fillStyle = '#f8f8f8';
-      ctx.font = '6px "Press Start 2P", monospace';
-      ctx.textAlign = 'center';
+      ctx.font = '6px "Press Start 2P", monospace'; ctx.textAlign = 'center';
       ctx.fillText('SHOP', px + bw/2, py + roofH + 23);
     } else {
-      // Pitched roof — GBA house style with ridge line
-      ctx.fillStyle = roofColor;
-      ctx.fillRect(px, py, bw, roofH);
-      // Roof tiles pattern
+      ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
       ctx.fillStyle = darkenHex(roofColor, 12);
       for (let row = 0; row < roofH; row += 4) {
         const off = (row / 4) % 2 === 0 ? 0 : 5;
-        for (let cx2 = px + off; cx2 < px + bw; cx2 += 10) {
+        for (let cx2 = px + off; cx2 < px + bw; cx2 += 10)
           ctx.fillRect(cx2, py + row, 8, 3);
-        }
       }
-      // Ridge line top
-      ctx.fillStyle = lightenHex(roofColor, 30);
-      ctx.fillRect(px + 4, py, bw - 8, 2);
-      // Eave shadow
-      ctx.fillStyle = darkenHex(roofColor, 22);
-      ctx.fillRect(px, py + roofH - 2, bw, 3);
-      // Chimney (houses only)
-      if (variant === 'house_red' || variant === 'house_blue') {
-        const chX = px + bw - 18;
-        ctx.fillStyle = '#888070';
-        ctx.fillRect(chX, py - 8, 8, roofH + 2);
-        ctx.fillStyle = '#606050';
-        ctx.fillRect(chX - 1, py - 10, 10, 4);
-        // Smoke puff
-        ctx.fillStyle = 'rgba(200,200,200,0.5)';
-        ctx.beginPath(); ctx.arc(chX + 3, py - 16, 4, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(chX + 7, py - 20, 3, 0, Math.PI*2); ctx.fill();
-      }
+      ctx.fillStyle = lightenHex(roofColor, 30); ctx.fillRect(px + 4, py, bw - 8, 2);
+      ctx.fillStyle = darkenHex(roofColor, 22); ctx.fillRect(px, py + roofH - 2, bw, 3);
+      // Chimney
+      const chX = px + bw - 18;
+      ctx.fillStyle = '#888070'; ctx.fillRect(chX, py - 8, 8, roofH + 2);
+      ctx.fillStyle = '#606050'; ctx.fillRect(chX - 1, py - 10, 10, 4);
+      ctx.fillStyle = 'rgba(200,200,200,0.45)';
+      ctx.beginPath(); ctx.arc(chX+3, py-16, 4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(chX+7, py-20, 3, 0, Math.PI*2); ctx.fill();
     }
 
-    // ── WINDOWS — distinct per variant ──
+    // Windows
     const winY = py + roofH + 8;
     if (variant === 'shop') {
-      // Large display window
       const ww = bw - 24, wh = 22;
-      ctx.fillStyle = '#b8e8ff';
-      ctx.fillRect(px + 12, winY, ww, wh);
-      // Window shine diagonal
-      ctx.fillStyle = '#e8f8ff';
-      ctx.fillRect(px + 14, winY + 2, 6, wh - 4);
-      // Frame
-      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1;
-      ctx.strokeRect(px + 12, winY, ww, wh);
-      // Cross dividers
-      ctx.fillStyle = '#181018';
-      ctx.fillRect(px + 12 + ww/2 - 1, winY, 2, wh);
+      ctx.fillStyle = '#b8e8ff'; ctx.fillRect(px + 12, winY, ww, wh);
+      ctx.fillStyle = '#e8f8ff'; ctx.fillRect(px + 14, winY + 2, 6, wh - 4);
+      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px + 12, winY, ww, wh);
+      ctx.fillStyle = '#181018'; ctx.fillRect(px + 12 + ww/2 - 1, winY, 2, wh);
     } else {
-      // Two separate windows with curtains
-      const positions = tw >= 7
-        ? [px + 8, px + bw/2 - 5, px + bw - 22]
-        : [px + 8, px + bw - 22];
-      positions.forEach(wx => {
-        // Window glass
-        ctx.fillStyle = '#b8e0ff';
-        ctx.fillRect(wx, winY, 12, 10);
-        // Curtain left
-        ctx.fillStyle = roofColor;
-        ctx.fillRect(wx, winY, 4, 10);
-        // Curtain right
-        ctx.fillRect(wx + 8, winY, 4, 10);
-        // Glass shine
-        ctx.fillStyle = '#e0f4ff';
-        ctx.fillRect(wx + 4, winY + 1, 4, 3);
-        // Cross divider
+      const positions = tw >= 7 ? [px+8, px+bw/2-5, px+bw-22] : [px+8, px+bw-22];
+      positions.forEach(wx2 => {
+        ctx.fillStyle = '#b8e0ff'; ctx.fillRect(wx2, winY, 12, 10);
+        ctx.fillStyle = roofColor; ctx.fillRect(wx2, winY, 4, 10); ctx.fillRect(wx2+8, winY, 4, 10);
+        ctx.fillStyle = '#e0f4ff'; ctx.fillRect(wx2+4, winY+1, 4, 3);
         ctx.fillStyle = '#181018';
-        ctx.fillRect(wx + 5, winY, 2, 10);
-        ctx.fillRect(wx, winY + 4, 12, 1);
-        // Frame
-        ctx.strokeStyle = '#181018'; ctx.lineWidth = 1;
-        ctx.strokeRect(wx, winY, 12, 10);
+        ctx.fillRect(wx2+5, winY, 2, 10); ctx.fillRect(wx2, winY+4, 12, 1);
+        ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(wx2, winY, 12, 10);
       });
     }
 
-    // ── DOOR — centred, taller for shop ──
+    // Door
     const doorW  = variant === 'shop' ? 16 : 12;
     const doorH2 = variant === 'shop' ? 24 : 18;
-    const dx = px + Math.floor(bw / 2) - Math.floor(doorW / 2);
+    const dx = px + Math.floor(bw/2) - Math.floor(doorW/2);
     const dy = py + bh - doorH2;
-    // Door frame
-    ctx.fillStyle = darkenHex(wallColor, 20);
-    ctx.fillRect(dx - 2, dy - 2, doorW + 4, doorH2 + 2);
-    // Door body
-    ctx.fillStyle = '#c07030';
-    ctx.fillRect(dx, dy, doorW, doorH2);
-    // Door panels
+    ctx.fillStyle = darkenHex(wallColor, 20); ctx.fillRect(dx-2, dy-2, doorW+4, doorH2+2);
+    ctx.fillStyle = '#c07030'; ctx.fillRect(dx, dy, doorW, doorH2);
     ctx.fillStyle = '#a05020';
-    ctx.fillRect(dx + 2, dy + 2, doorW - 4, doorH2/2 - 3);
-    ctx.fillRect(dx + 2, dy + doorH2/2 + 1, doorW - 4, doorH2/2 - 3);
-    // Door shadow
-    ctx.fillStyle = '#804010';
-    ctx.fillRect(dx, dy, 2, doorH2);
-    // Knob
-    ctx.fillStyle = '#f8d030';
-    ctx.fillRect(dx + doorW - 4, dy + Math.floor(doorH2 * 0.55), 3, 3);
-    // Step
-    ctx.fillStyle = darkenHex(wallColor, 25);
-    ctx.fillRect(dx - 3, py + bh - 2, doorW + 6, 2);
+    ctx.fillRect(dx+2, dy+2, doorW-4, doorH2/2-3);
+    ctx.fillRect(dx+2, dy+doorH2/2+1, doorW-4, doorH2/2-3);
+    ctx.fillStyle = '#804010'; ctx.fillRect(dx, dy, 2, doorH2);
+    ctx.fillStyle = '#f8d030'; ctx.fillRect(dx+doorW-4, dy+Math.floor(doorH2*0.55), 3, 3);
+    ctx.fillStyle = darkenHex(wallColor, 25); ctx.fillRect(dx-3, py+bh-2, doorW+6, 2);
 
-    // ── OUTLINE ──
-    ctx.strokeStyle = '#181018';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(px, py, bw, bh);
+    // Outline
+    ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px, py, bw, bh);
 
-    // ── NAME LABEL above (except shop — has its own sign) ──
+    // Label
     if (label && variant !== 'shop') {
       const sw = label.length * 5 + 10;
       ctx.fillStyle = darkenHex(roofColor, 8);
-      ctx.fillRect(px + bw/2 - sw/2, py - 10, sw, 10);
-      ctx.strokeStyle = lightenHex(roofColor, 20);
-      ctx.lineWidth = 1;
-      ctx.strokeRect(px + bw/2 - sw/2, py - 10, sw, 10);
+      ctx.fillRect(px+bw/2-sw/2, py-10, sw, 10);
+      ctx.strokeStyle = lightenHex(roofColor, 20); ctx.lineWidth = 1;
+      ctx.strokeRect(px+bw/2-sw/2, py-10, sw, 10);
       ctx.fillStyle = '#f8f8f8';
-      ctx.font = '5px "Press Start 2P", monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(label, px + bw/2, py - 2);
+      ctx.font = '5px "Press Start 2P", monospace'; ctx.textAlign = 'center';
+      ctx.fillText(label, px+bw/2, py-2);
     }
   }
 
-  // House 1 — NW: red-roof house (classic Pokémon home)
-  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', 'HOME',   'house_red');
-  // House 2 — NE: blue-roof house (scholar style)
-  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#e8eaf8', 'HOUSE',  'house_blue');
-  // House 3 — SW: red-roof elder home (wider)
-  drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S",'house_red');
-  // Shop — SE: green flat-roof shop
-  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',   'shop');
+  // ── 4a. NAMED BUILDINGS (fixed, for interior system) ──
+  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', 'HOME',    'house_red');
+  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#e8eaf8', 'HOUSE',   'house_blue');
+  drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S", 'house_red');
+  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',    'shop');
 
-  // ── 5. DECORATIVE TREES (drawn into canvas only — shadow layer) ──
-  // These are background-only trees (no depth / collision).
-  // Real depth-sorted trees are Phaser objects added in the scene.
-  // We draw their shadows / ground base here so the ground looks alive.
-  const bgTrees = [
-    [14, 8],[10,14],[18,8],[30, 8],[40,14],[38,10],
-    [8, 30],[8, 38],[14,40],[38,40],[40,38],[40,30],
-  ];
-  bgTrees.forEach(([tx, ty]) => {
-    const px = tx * TILE_SIZE, py = ty * TILE_SIZE;
-    // Shadow ellipse on ground
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  // Mark named building tiles as occupied
+  const occupied = new Set([
+    ...[[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[5,8],[6,8],[7,8],[8,8],[9,8],[10,8],[5,9],[6,9],[7,9],[8,9],[9,9],[10,9]],
+    ...[[36,5],[37,5],[38,5],[39,5],[40,5],[41,5],[36,6],[37,6],[38,6],[39,6],[40,6],[41,6],[36,7],[37,7],[38,7],[39,7],[40,7],[41,7],[36,8],[37,8],[38,8],[39,8],[40,8],[41,8],[36,9],[37,9],[38,9],[39,9],[40,9],[41,9]],
+    ...[[5,36],[6,36],[7,36],[8,36],[9,36],[10,36],[11,36],[5,37],[6,37],[7,37],[8,37],[9,37],[10,37],[11,37],[5,38],[6,38],[7,38],[8,38],[9,38],[10,38],[11,38],[5,39],[6,39],[7,39],[8,39],[9,39],[10,39],[11,39],[5,40],[6,40],[7,40],[8,40],[9,40],[10,40],[11,40]],
+    ...[[36,36],[37,36],[38,36],[39,36],[40,36],[41,36],[42,36],[36,37],[37,37],[38,37],[39,37],[40,37],[41,37],[42,37],[36,38],[37,38],[38,38],[39,38],[40,38],[41,38],[42,38],[36,39],[37,39],[38,39],[39,39],[40,39],[41,39],[42,39],[36,40],[37,40],[38,40],[39,40],[40,40],[41,40],[42,40]],
+  ].map(([x,y]) => `${x},${y}`));
+
+  // ── 4b. PROCEDURAL BUILDINGS — on road-grid spacing, avoiding roads+occupied ──
+  // Buildings placed every 6 tiles, 1 tile inside each road block
+  // Three variants: house_red (60%), house_blue (30%), shop (10%)
+  const rng = (seed) => { let x = Math.sin(seed) * 43758; return x - Math.floor(x); };
+  let bldgSeed = 1;
+  for (let ty2 = 2; ty2 < ROWS - 6; ty2++) {
+    for (let tx2 = 2; tx2 < COLS - 6; tx2++) {
+      // Place at every 6-tile interval (shifted by 1 from road to leave gap)
+      if ((tx2 - 1) % 6 !== 0 || (ty2 - 1) % 6 !== 0) continue;
+
+      // Skip if on road or town square or occupied by named building
+      if (roadSet.has(`${tx2},${ty2}`)) continue;
+      if (occupied.has(`${tx2},${ty2}`)) continue;
+      // Skip if too close to named buildings (border buffer)
+      if (tx2 < 14 && ty2 < 14) continue;   // NW quadrant — reserved
+      if (tx2 > 32 && ty2 < 14) continue;   // NE quadrant — reserved
+      if (tx2 < 14 && ty2 > 32) continue;   // SW quadrant — reserved
+      if (tx2 > 32 && ty2 > 32) continue;   // SE quadrant — reserved
+
+      bldgSeed++;
+      const r = rng(bldgSeed);
+      let variant, roofCol, wallCol, lbl;
+      if (r > 0.9) {
+        variant = 'shop'; roofCol = '#289048'; wallCol = '#e8f8e8'; lbl = '';
+      } else if (r > 0.6) {
+        variant = 'house_blue'; roofCol = '#2848c0'; wallCol = '#e8eaf8'; lbl = 'HOUSE';
+      } else {
+        variant = 'house_red'; roofCol = '#e82020'; wallCol = '#f0e8c0'; lbl = 'HOME';
+      }
+      drawBuilding(ctx, tx2, ty2, 5, 4, roofCol, wallCol, lbl, variant);
+    }
+  }
+
+  // ── 5. RANDOM TREE CLUSTERS — shadows only in canvas ──
+  // Phaser tree objects (trunk+leaves) are added in spawnCityWorldObjects().
+  // We draw ground shadows here so they appear under the Phaser images.
+  const treeShadows = [];
+  const rng2 = (n) => { let x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
+  for (let i = 0; i < 180; i++) {
+    const tx3 = Math.floor(rng2(i * 3 + 1) * COLS);
+    const ty3 = Math.floor(rng2(i * 3 + 2) * ROWS);
+    if (roadSet.has(`${tx3},${ty3}`)) continue;
+    if (occupied.has(`${tx3},${ty3}`)) continue;
+    treeShadows.push([tx3, ty3]);
+    ctx.fillStyle = 'rgba(0,0,0,0.16)';
     ctx.beginPath();
-    ctx.ellipse(px + 8, py + 14, 7, 4, 0, 0, Math.PI * 2);
+    ctx.ellipse(tx3*S + S/2, ty3*S + S - 2, 6, 3, 0, 0, Math.PI*2);
     ctx.fill();
-  });
+  }
 
   worldGfx.refresh();
+  console.log('[createTextures] ✓ Road-grid town drawn (50×50 tiles, road every 8, procedural buildings)');
+
+  // Store tree positions so spawnCityWorldObjects can use the same set
+  scene._generatedTreeTiles = treeShadows;
   console.log('[createTextures] ✓ Pokémon starter town drawn (800×800, tile=16px)');
 
   // ── PLAYER SPRITE — 8 direction-frame textures ──
@@ -1956,16 +1925,12 @@ function spawnCityWorldObjects(scene) {
 
   const T = TILE_SIZE;
 
-  // Tree positions [tileX, tileY] — same as used in createTextures bgTrees
-  // plus interior decorative trees
-  const treeTiles = [
-    // Border trees (edge of playable area)
+  // ── TREE POSITIONS — generated by createTextures() using same seeded RNG ──
+  // scene._generatedTreeTiles is set during createTextures so both the canvas
+  // shadows and the Phaser depth-sorted sprites use identical positions.
+  const treeTiles = scene._generatedTreeTiles || [
     [14,8],[10,14],[18,8],[30,8],[40,14],[38,10],
     [8,30],[8,38],[14,40],[38,40],[40,38],[40,30],
-    // Interior decorative trees
-    [13,13],[15,17],[17,13],[34,13],[36,17],[33,17],
-    [13,34],[15,37],[33,34],[35,37],
-    [20,12],[31,12],[12,20],[12,31],[38,20],[38,31],
   ];
 
   // ── Build trunk and leaves textures ──
@@ -2090,6 +2055,64 @@ function spawnCityWorldObjects(scene) {
     door.returnY    = doorY + 28;            // player spawns below the door on exit
     gameState.worldObjects.push(door);
   });
+
+  // ── PROCEDURAL BUILDING COLLIDERS ──
+  // Same seeded RNG as createTextures — generates identical building positions.
+  // We only add collision/door zones here (canvas art was already drawn).
+  {
+    const COLS = WORLD_W / T, ROWS = WORLD_H / T;
+    const ROAD_EVERY = 8;
+    const roadSet2 = new Set();
+    for (let tx = 0; tx < COLS; tx++)
+      for (let ty = 0; ty < ROWS; ty++)
+        if (tx % ROAD_EVERY === 0 || ty % ROAD_EVERY === 0) roadSet2.add(`${tx},${ty}`);
+    for (let ty = 21; ty <= 28; ty++)
+      for (let tx = 21; tx <= 28; tx++) roadSet2.add(`${tx},${ty}`);
+
+    const rngP = (seed) => { let x = Math.sin(seed) * 43758; return x - Math.floor(x); };
+    let pSeed = 1;
+
+    for (let ty2 = 2; ty2 < ROWS - 6; ty2++) {
+      for (let tx2 = 2; tx2 < COLS - 6; tx2++) {
+        if ((tx2 - 1) % 6 !== 0 || (ty2 - 1) % 6 !== 0) continue;
+        if (roadSet2.has(`${tx2},${ty2}`)) continue;
+        if (tx2 < 14 && ty2 < 14) continue;
+        if (tx2 > 32 && ty2 < 14) continue;
+        if (tx2 < 14 && ty2 > 32) continue;
+        if (tx2 > 32 && ty2 > 32) continue;
+
+        pSeed++;
+        const r = rngP(pSeed);
+        const variant = r > 0.9 ? 'shop' : r > 0.6 ? 'house_blue' : 'house_red';
+        const tw = 5, th = 4;
+        const px = tx2 * T, py = ty2 * T;
+        const bw = tw * T, bh = th * T;
+
+        // Collision (upper 62%)
+        const collH = Math.round(bh * 0.62);
+        const cBody = scene.physics.add.staticImage(px + bw/2, py + collH/2, null).setVisible(false);
+        cBody.setDisplaySize(bw - 4, collH);
+        cBody.refreshBody();
+        gameState.worldObjects.push(cBody);
+        gameState.buildingGroup.add(cBody);
+
+        // isTop roof marker
+        const rm = scene.add.rectangle(px + bw/2, py, bw, 4, 0x000000, 0);
+        rm.isTop = true; rm.setDepth(py + 1000);
+        gameState.worldObjects.push(rm);
+        gameState._topObjects.push(rm);
+
+        // Door zone
+        const dz = gameState.doorGroup.create(px + bw/2, py + bh, null);
+        dz.setSize(32, 20).setOrigin(0.5, 0.5).setVisible(false).refreshBody();
+        dz.houseId    = `proc_${tx2}_${ty2}`;
+        dz.houseLabel = variant === 'shop' ? 'SHOP' : 'HOUSE';
+        dz.returnX    = px + bw/2;
+        dz.returnY    = py + bh + 28;
+        gameState.worldObjects.push(dz);
+      }
+    }
+  }
 
   // ════════════════════════════════════════════════
   // WORLD LABELS (floating text over locations)
