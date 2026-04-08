@@ -1,193 +1,675 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Pixel Synapse</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
   <style>
-    * { margin:0; padding:0; box-sizing:border-box; }
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+    :root {
+      --ps-void:         #0a0a0f;
+      --ps-dark-stone:   #1a1c14;
+      --ps-sq-pave:      #2a2820;
+      --ps-stone-edge:   #3a3530;
+      --ps-cobble:       #4a4540;
+      --ps-grass-dark:   #0d1a0a;
+      --ps-grass-base:   #183010;
+      --ps-grass-mid:    #224d12;
+      --ps-grass-bright: #2e6618;
+      --ps-tree-dark:    #1a3a0d;
+      --ps-trunk:        #a85c28;
+      --ps-wall-dark:    #241818;
+      --ps-wall-mid:     #2a1a1a;
+      --ps-roof-trim:    #3a2020;
+      --ps-wall-blue:    #181824;
+      --ps-wall-green:   #182418;
+      --ps-fountain:     #1a2a3a;
+      --ps-panel:        #2a2234;
+      --ps-border:       #3344aa;
+      --ps-blue:         #4455cc;
+      --ps-name:         #aabbff;
+      --ps-dialogue:     #ccdde8;
+      --ps-you:          #ffcc44;
+      --ps-online:       #44ff88;
+      --ps-danger:       #ff4444;
+      --ps-water:        #88ccff;
+      --ps-interact:     #44aaff;
+      --ps-eprompt:      #ffff44;
+      --ps-muted:        #556677;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
     body {
-      background:#06060f; display:flex; flex-direction:column;
-      align-items:center; justify-content:center;
-      height:100vh; font-family:'Courier New',monospace;
-      color:#aabbff; overflow:hidden; user-select:none;
+      background: var(--ps-void);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Press Start 2P', monospace;
     }
 
-    #title { font-size:12px; letter-spacing:4px; color:#4455cc; margin-bottom:6px; }
-    #status { font-size:9px; color:#334; margin-bottom:8px; letter-spacing:1px; min-height:12px; }
-
-    #game-wrap { position:relative; border:2px solid #1a1a3a; box-shadow:0 0 40px #1a1a3a; }
-
-    /* ── HUD bar ── */
+    /* ═══════════════════════════════
+       HUD — top bar
+    ═══════════════════════════════ */
     #hud {
-      position:absolute; top:0; left:0; right:0;
-      display:flex; justify-content:space-between; align-items:center;
-      padding:4px 10px; background:#04040ccc;
-      border-bottom:1px solid #1a1a2a; z-index:20; pointer-events:none;
+      width: 800px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 12px;
+      background: #0d0d1a;
+      border: 2px solid #222244;
+      border-bottom: none;
+      font-size: 7px;
+      color: #7788cc;
+      letter-spacing: 1px;
     }
-    #hud-name  { font-size:8px; color:#aabbff; }
-    #hud-coins { font-size:8px; color:#ffcc44; }
-    #hud-rep   { font-size:8px; color:#44ff88; }
-    #hud-job   { font-size:7px; color:#aa66ff; max-width:240px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #player-count { font-size:8px; color:#44ff88; }
+    #hud .title       { color: var(--ps-name); font-size: 8px; flex-shrink: 0; }
+    #hud .player-name { color: var(--ps-you);  flex-shrink: 0; }
+    #hud .controls    { color: var(--ps-muted); font-size: 6px; margin-left: auto; flex-shrink: 0; }
+    #hud .online      { color: var(--ps-online); flex-shrink: 0; }
 
-    /* ── Chat ── */
-    #chat-panel {
-      position:absolute; bottom:0; left:0; width:250px;
-      max-height:140px; background:#04040ccc;
-      border-right:1px solid #1a1a2a; border-top:1px solid #1a1a2a;
-      display:flex; flex-direction:column; z-index:10;
-    }
-    #chat-log { flex:1; overflow-y:auto; padding:5px 7px; font-size:9px; line-height:1.6; }
-    #chat-log .cn { color:#4fc3f7; } #chat-log .ct { color:#ccdde8; }
-    #chat-log .cs { color:#334; font-style:italic; }
-    #chat-log .cg { color:#aa66ff; font-style:italic; }
-    #chat-input-row { display:flex; border-top:1px solid #1a1a2a; }
-    #chat-input {
-      flex:1; background:#0a0a14; border:none; color:#ccdde8;
-      font-size:9px; padding:5px 7px; font-family:'Courier New',monospace; outline:none;
-    }
-    #chat-send {
-      background:#1a1a2a; border:none; border-left:1px solid #1a1a2a;
-      color:#4455cc; padding:0 8px; cursor:pointer; font-size:9px;
-    }
-    #chat-send:hover { background:#242444; }
+    /* stat bars */
+    #hud-stats { display: flex; flex-direction: column; gap: 3px; margin-left: 8px; flex-shrink: 0; }
+    .sbar      { display: flex; align-items: center; gap: 4px; }
+    .sbar-lbl  { font-size: 5px; width: 12px; text-align: right; letter-spacing: 0; }
+    .sbar-track{ width: 48px; height: 4px; background: #0a0a14; border: 1px solid #1a1a2a; }
+    .sbar-fill { height: 4px; transition: width 0.4s ease; }
+    .sbar-fill.hp { background: #44aa66; }
+    .sbar-fill.mp { background: var(--ps-blue); }
+    .sbar-fill.xp { background: #cc9933; }
 
-    /* ── Interact prompt ── */
-    #interact-prompt {
-      position:absolute; bottom:145px; left:50%;
-      transform:translateX(-50%);
-      background:#0a0a18; border:1px solid #4455cc;
-      color:#aabbff; font-size:8px; padding:3px 10px;
-      z-index:15; display:none; pointer-events:none;
-      letter-spacing:1px;
-    }
+    /* reputation pips in HUD */
+    #hud-rep { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+    #rep-label { font-size: 5px; letter-spacing: 1px; }
+    #rep-pips  { display: flex; gap: 2px; }
+    .rep-pip   { width: 6px; height: 6px; border: 1px solid #33445566; transition: background 0.3s, border-color 0.3s; }
 
-    /* ── NPC dialogue box ── */
-    #dialogue-box {
-      position:absolute; bottom:145px; left:50%; transform:translateX(-50%);
-      background:#080810; border:2px solid #aa66ff;
-      padding:12px 16px; min-width:340px; max-width:500px;
-      z-index:30; display:none; font-size:9px;
+    /* ═══════════════════════════════
+       GAME CONTAINER
+    ═══════════════════════════════ */
+    #game-container {
+      position: relative;
+      border: 3px solid #222244;
+      box-shadow: 0 0 40px #1a1a3a, 0 0 80px #0d0d1a;
+      image-rendering: pixelated;
     }
-    #dialogue-npc  { color:#aa66ff; font-size:10px; margin-bottom:6px; letter-spacing:1px; }
-    #dialogue-text { color:#ccdde8; line-height:1.6; margin-bottom:8px; }
-    #dialogue-btns { display:flex; gap:6px; flex-wrap:wrap; }
-    .dlg-btn {
-      background:#1a1a2a; border:1px solid #3344aa; color:#aabbff;
-      padding:3px 10px; font-family:'Courier New',monospace; font-size:8px;
-      cursor:pointer;
-    }
-    .dlg-btn:hover { background:#242444; border-color:#aa66ff; color:#fff; }
-    .dlg-btn.shop  { border-color:#ffcc44; color:#ffcc44; }
-    .dlg-btn.job   { border-color:#44ff88; color:#44ff88; }
-    .dlg-btn.close { border-color:#334; color:#556677; margin-left:auto; }
-
-    /* ── Shop panel ── */
-    #shop-panel {
-      position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-      background:#080810; border:2px solid #ffcc44;
-      padding:14px 18px; min-width:300px; z-index:40; display:none;
-    }
-    #shop-title  { color:#ffcc44; font-size:10px; margin-bottom:4px; letter-spacing:2px; }
-    #shop-coins  { color:#ffcc44; font-size:8px; margin-bottom:10px; }
-    #shop-items  { display:flex; flex-direction:column; gap:6px; }
-    .shop-item   { display:flex; justify-content:space-between; align-items:center;
-                   background:#0a0a18; border:1px solid #2a2a3a; padding:5px 9px; }
-    .shop-item-name { color:#ccdde8; font-size:8px; }
-    .shop-item-price { color:#ffcc44; font-size:8px; margin-right:8px; }
-    .shop-buy { background:#1a2a1a; border:1px solid #44ff88; color:#44ff88;
-                font-family:'Courier New',monospace; font-size:8px; padding:2px 8px; cursor:pointer; }
-    .shop-buy:hover  { background:#243424; }
-    .shop-buy:disabled { opacity:0.3; cursor:default; }
-    #shop-close { margin-top:10px; background:none; border:1px solid #334;
-                  color:#556677; font-family:'Courier New',monospace;
-                  font-size:8px; padding:3px 10px; cursor:pointer; width:100%; }
-    #shop-close:hover { border-color:#556677; color:#aabbff; }
-
-    /* ── Job panel ── */
-    #job-panel {
-      position:absolute; top:36px; right:8px;
-      background:#080810; border:1px solid #aa66ff;
-      padding:8px 12px; min-width:220px; z-index:15; display:none;
-      font-size:8px;
-    }
-    #job-title   { color:#aa66ff; margin-bottom:4px; letter-spacing:1px; }
-    #job-label   { color:#ccdde8; margin-bottom:3px; line-height:1.5; }
-    #job-desc    { color:#556677; font-size:7px; line-height:1.5; }
-    #job-timer   { color:#ffcc44; font-size:7px; margin-top:4px; min-height:10px; }
-
-    /* ── Floating reward popup ── */
-    .float-popup {
-      position:absolute; pointer-events:none; z-index:50;
-      font-size:11px; font-weight:bold; font-family:'Courier New',monospace;
-      text-shadow:0 0 6px currentColor;
-      animation: floatUp 1.8s ease-out forwards;
-    }
-    @keyframes floatUp {
-      0%   { opacity:1;   transform:translateY(0); }
-      100% { opacity:0;   transform:translateY(-60px); }
+    #game-container::after {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+      background: repeating-linear-gradient(
+        to bottom, transparent 0px, transparent 1px,
+        rgba(0,0,0,0.05) 1px, rgba(0,0,0,0.05) 2px
+      );
+      pointer-events: none; z-index: 999;
     }
 
-    #controls { margin-top:6px; font-size:8px; color:#223; letter-spacing:1px; }
+    /* ═══════════════════════════════
+       DIALOGUE BOX — bottom overlay
+       Slides up from below on open
+    ═══════════════════════════════ */
+    #dialogue-overlay {
+      display: none;
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      transform: translateY(100%);
+      opacity: 0;
+      transition: transform 0.14s ease-out, opacity 0.14s ease-out;
+      background: #080810;
+      border-top: 2px solid var(--ps-border);
+      z-index: 100;
+      image-rendering: pixelated;
+    }
+    #dialogue-overlay.open {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    /* header row: avatar + name + role + emotion dot */
+    #dialogue-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: #0f0f22;
+      border-bottom: 1px solid #1a1a33;
+    }
+    #dialogue-avatar {
+      width: 32px; height: 32px;
+      border: 2px solid #334;
+      image-rendering: pixelated;
+      flex-shrink: 0;
+    }
+    #dialogue-npc-name {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 9px; color: var(--ps-name); letter-spacing: 2px;
+    }
+    #dialogue-role {
+      font-family: 'Press Start 2P', monospace;
+      font-size: 6px; color: #445577; margin-top: 3px;
+    }
+    /* emotion: dot + label side by side */
+    #dialogue-emotion-wrap {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    #dialogue-emotion-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ps-muted);
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    #dialogue-emotion-label {
+      font-family: 'VT323', monospace;
+      font-size: 16px;
+      color: var(--ps-muted);
+      transition: color 0.2s;
+    }
+
+    /* dialogue text body */
+    #dialogue-text {
+      padding: 12px 16px 8px;
+      font-family: 'VT323', monospace;
+      font-size: 22px; color: var(--ps-dialogue);
+      line-height: 1.5; min-height: 58px; letter-spacing: 0.5px;
+    }
+
+    /* input row */
+    #dialogue-input-area {
+      display: flex;
+      border-top: 1px solid #1a1a33;
+      padding: 7px 10px; gap: 6px;
+    }
+    #dialogue-input {
+      flex: 1; background: #0a0a1a;
+      border: 1px solid #334; color: var(--ps-name);
+      font-family: 'VT323', monospace; font-size: 18px;
+      padding: 4px 8px; outline: none;
+    }
+    #dialogue-input:focus { border-color: var(--ps-blue); }
+    #dialogue-input::placeholder { color: #334; }
+    #dialogue-send {
+      background: #1a1a44; border: 1px solid var(--ps-border); color: #8899ff;
+      font-family: 'Press Start 2P', monospace; font-size: 6px;
+      padding: 5px 10px; cursor: pointer; letter-spacing: 1px;
+      transition: background 0.12s, color 0.12s;
+    }
+    #dialogue-send:hover { background: #2233aa; color: var(--ps-dialogue); }
+    #dialogue-close {
+      background: #1a0a0a; border: 1px solid #441111; color: #885555;
+      font-family: 'Press Start 2P', monospace; font-size: 6px;
+      padding: 5px 8px; cursor: pointer; letter-spacing: 1px;
+      transition: background 0.12s, color 0.12s;
+    }
+    #dialogue-close:hover { background: #441111; color: #ffaaaa; }
+
+    /* ═══════════════════════════════
+       CHAT BUBBLES
+       Created dynamically by JS,
+       positioned absolute over game
+    ═══════════════════════════════ */
+    .chat-bubble {
+      position: absolute;
+      background: #0f0f22;
+      border: 1px solid var(--ps-border);
+      padding: 4px 8px;
+      font-family: 'VT323', monospace;
+      font-size: 17px;
+      color: var(--ps-dialogue);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 80;
+      animation: bubble-in 0.1s ease-out;
+    }
+    /* tail triangle pointing down */
+    .chat-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -5px; left: 50%;
+      transform: translateX(-50%);
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-top: 5px solid var(--ps-border);
+    }
+    @keyframes bubble-in {
+      from { transform: translateY(4px); opacity: 0; }
+      to   { transform: translateY(0);   opacity: 1; }
+    }
+
+    /* NPC emotion badge (rendered as Phaser DOM overlay, see main.js) */
+    .npc-name-tag {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      pointer-events: none;
+      z-index: 60;
+      transform: translate(-50%, -100%);
+    }
+    .npc-name-tag .name {
+      background: #0f0f22;
+      border: 1px solid #3344aa;
+      padding: 2px 5px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 5px; color: var(--ps-name);
+      white-space: nowrap;
+    }
+    .npc-name-tag .emotion {
+      font-family: 'VT323', monospace;
+      font-size: 13px;
+      padding: 1px 5px;
+      border: 1px solid;
+      white-space: nowrap;
+      transition: color 0.3s, border-color 0.3s;
+    }
+
+    /* ═══════════════════════════════
+       MINIMAP
+    ═══════════════════════════════ */
+    #minimap {
+      position: absolute; top: 10px; right: 10px;
+      width: 100px; height: 100px;
+      background: #05050f; border: 1px solid #222244;
+      opacity: 0.88; z-index: 50;
+    }
+    #minimap canvas   { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+    #minimap-label    { text-align: center; font-family: 'Press Start 2P', monospace; font-size: 5px; color: #334455; letter-spacing: 2px; padding: 2px 0; }
+
+    /* ═══════════════════════════════
+       PLAYER LIST
+    ═══════════════════════════════ */
+    #player-list {
+      position: absolute; top: 10px; left: 10px;
+      background: #05050fdd; border: 1px solid #222244;
+      padding: 6px 8px; z-index: 50; min-width: 92px;
+    }
+    #player-list .pl-title  { font-family: 'Press Start 2P', monospace; font-size: 5px; color: #334455; margin-bottom: 5px; letter-spacing: 2px; }
+    #player-list .pl-entry  { font-family: 'VT323', monospace; font-size: 14px; color: #667788; margin: 1px 0; }
+    #player-list .pl-me     { font-family: 'VT323', monospace; font-size: 14px; color: var(--ps-name); }
+
+    /* ═══════════════════════════════
+       THINKING INDICATOR
+    ═══════════════════════════════ */
+    #thinking {
+      display: none;
+      position: absolute; bottom: 105px; left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px; color: var(--ps-blue);
+      z-index: 150; letter-spacing: 1px;
+      animation: blink 0.7s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+    /* ═══════════════════════════════
+       TOAST
+    ═══════════════════════════════ */
+    #toast {
+      display: none;
+      position: absolute; top: 12px; right: 12px;
+      background: #0a0a1a; border: 1px solid var(--ps-border);
+      padding: 7px 12px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 7px; color: #8899cc;
+      z-index: 200; pointer-events: none; letter-spacing: 1px;
+    }
+    /* ═══════════════════════════════
+       SHOP / VOTE / GAMEPLAY LOOP
+    ═══════════════════════════════ */
+    .shop-tab {
+      background: transparent; border: none; border-bottom: 2px solid transparent;
+      color: var(--ps-muted); padding: 4px 14px;
+      font-family: 'Press Start 2P', monospace; font-size: 5px;
+      cursor: pointer; letter-spacing: 1px; transition: color 0.15s;
+    }
+    .shop-tab:hover { color: var(--ps-name); }
+    .active-tab { color: var(--ps-name) !important; border-bottom-color: var(--ps-border) !important; }
+    .shop-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 10px; background: #0d0d1a; border: 1px solid #1a1a2a;
+      gap: 8px;
+    }
+    .shop-row:hover { border-color: var(--ps-border); }
+    .shop-row-name  { font-size: 6px; color: var(--ps-dialogue); flex: 1; }
+    .shop-row-meta  { font-size: 5px; color: var(--ps-muted); }
+    .shop-row-price { font-size: 5px; color: var(--ps-you); }
+    .shop-btn {
+      background: #182418; border: 1px solid var(--ps-online); color: var(--ps-online);
+      padding: 3px 10px; font-family: 'Press Start 2P', monospace;
+      font-size: 5px; cursor: pointer; flex-shrink: 0;
+    }
+    .shop-btn:hover  { background: #223322; }
+    .shop-btn:disabled { opacity: 0.3; cursor: default; }
+    .work-btn { background: #18182a !important; border-color: var(--ps-interact) !important; color: var(--ps-interact) !important; }
+    .work-btn:hover { background: #22223a !important; }
+    .action-btn {
+      background: #1a1a2a; border: 1px solid var(--ps-border);
+      color: var(--ps-name); padding: 4px 10px;
+      font-family: 'Press Start 2P', monospace; font-size: 5px; cursor: pointer;
+    }
+    .action-btn:hover { background: #2a2a3a; }
+    /* ── Skill tree ── */
+    .skill-path {
+      background: #0d0d1a; border: 1px solid #1a1a2a;
+      padding: 10px 8px; display: flex; flex-direction: column; gap: 5px; align-items: center; text-align: center;
+    }
+    .skill-path-title { font-size: 6px; letter-spacing: 1px; margin-bottom: 2px; }
+    .skill-path-desc  { font-size: 4px; color: #556677; line-height: 1.6; }
+    .skill-path-level { font-size: 16px; color: #ffffff; font-family: 'Press Start 2P', monospace; margin: 4px 0; }
+    .skill-btn {
+      background: #18182a; border: 1px solid #ce93d8; color: #ce93d8;
+      padding: 3px 10px; font-family: 'Press Start 2P', monospace; font-size: 5px; cursor: pointer;
+    }
+    .skill-btn:hover:not(:disabled) { background: #28284a; }
+    /* ── World map ── */
+    #world-map-overlay { user-select: none; }
+    #world-map-svg g[data-town]:hover circle { opacity: 0.9; }
+    #world-map-svg g[data-town] { transition: opacity 0.15s; }
+    #wm-info { transition: opacity 0.2s; }
+    /* ── Travel menu ── */
+    .travel-row { transition: border-color 0.15s, background 0.15s; }
+    .travel-row:hover:not(.travel-row-current) { filter: brightness(1.15); }
+    .travel-row-current { opacity: 0.6; cursor: default !important; }
+    .travel-btn:hover { filter: brightness(1.3); }
+    /* ── Drama ticker ── */
+    #drama-ticker { animation: none; }
+    /* ── Level-up pulse ── */
+    @keyframes lvl-pulse { 0%,100%{box-shadow:0 0 10px #ffcc44} 50%{box-shadow:0 0 30px #ffcc44,0 0 60px #ffaa00} }
+    #levelup-overlay { animation: lvl-pulse 1.2s ease-in-out infinite; }
   </style>
-</head>
 <body>
-  <div id="title">⬛ PIXEL SYNAPSE</div>
-  <div id="status">Connecting…</div>
 
-  <div id="game-wrap">
-    <div id="game"></div>
+  <!-- ═══ HUD ═══ -->
+  <div id="hud">
+    <span class="title">▸ PIXEL SYNAPSE</span>
+    <span class="player-name" id="hud-name">CONNECTING...</span>
 
-    <!-- HUD -->
-    <div id="hud">
-      <span id="hud-name">—</span>
-      <span id="hud-coins">◈ 50 coins</span>
-      <span id="hud-rep">★ 0 rep</span>
-      <span id="hud-job">No active job</span>
-      <span id="player-count">● 1 online</span>
-    </div>
-
-    <!-- Interact prompt -->
-    <div id="interact-prompt">[E] Talk to <span id="prompt-npc-name">NPC</span></div>
-
-    <!-- NPC dialogue -->
-    <div id="dialogue-box">
-      <div id="dialogue-npc"></div>
-      <div id="dialogue-text"></div>
-      <div id="dialogue-btns"></div>
-    </div>
-
-    <!-- Shop panel -->
-    <div id="shop-panel">
-      <div id="shop-title">⚑ SHOP</div>
-      <div id="shop-coins"></div>
-      <div id="shop-items"></div>
-      <button id="shop-close" onclick="closeShop()">✕ Close</button>
-    </div>
-
-    <!-- Active job panel -->
-    <div id="job-panel">
-      <div id="job-title">▸ ACTIVE JOB</div>
-      <div id="job-label"></div>
-      <div id="job-desc"></div>
-      <div id="job-timer"></div>
-    </div>
-
-    <!-- Chat -->
-    <div id="chat-panel">
-      <div id="chat-log"></div>
-      <div id="chat-input-row">
-        <input id="chat-input" type="text" placeholder="Enter to chat…" maxlength="120" autocomplete="off">
-        <button id="chat-send">▶</button>
+    <div id="hud-stats">
+      <div class="sbar"><span class="sbar-lbl" style="color:#44aa66">HP</span><div class="sbar-track"><div class="sbar-fill hp" id="bar-hp" style="width:100%"></div></div></div>
+      <div class="sbar"><span class="sbar-lbl" style="color:#4455cc">MP</span><div class="sbar-track"><div class="sbar-fill mp" id="bar-mp" style="width:70%"></div></div></div>
+      <div class="sbar" style="position:relative;">
+        <span class="sbar-lbl" style="color:#cc9933">XP</span>
+        <div class="sbar-track" style="position:relative;">
+          <div class="sbar-fill xp" id="bar-xp" style="width:20%;transition:width 0.5s ease-out;"></div>
+          <span id="xp-level-badge" style="position:absolute;right:2px;top:-1px;font-size:4px;color:#ffcc44;font-family:'Press Start 2P',monospace;line-height:1;">Lv1</span>
+        </div>
       </div>
+    </div>
+
+    <!-- Reputation — three axes + title, driven by server -->
+    <div id="hud-rep">
+      <span id="rep-label" style="font-size:6px;color:#888780;letter-spacing:1px;flex-shrink:0;">○ STRANGER</span>
+      <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:4px;color:#44aa66;width:10px;text-align:right;">KND</span>
+          <div style="width:36px;height:3px;background:#0a0a14;border:1px solid #1a1a2a;"><div id="bar-kindness" style="height:3px;width:50%;background:#44ff88;transition:width 0.4s,background 0.3s"></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:4px;color:#4488cc;width:10px;text-align:right;">TRS</span>
+          <div style="width:36px;height:3px;background:#0a0a14;border:1px solid #1a1a2a;"><div id="bar-trust" style="height:3px;width:50%;background:#44aaff;transition:width 0.4s,background 0.3s"></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:3px;">
+          <span style="font-size:4px;color:#cc9933;width:10px;text-align:right;">CHS</span>
+          <div style="width:36px;height:3px;background:#0a0a14;border:1px solid #1a1a2a;"><div id="bar-chaos" style="height:3px;width:0%;background:#ffcc44;transition:width 0.4s,background 0.3s"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <span class="online" id="hud-online">● 0 ONLINE</span>
+    <span id="hud-clock" style="font-size:6px;color:#ffcc44;flex-shrink:0;letter-spacing:1px;">☀ 08:00</span>
+    <span class="controls">WASD · E:INTERACT · T:CHAT · M:MAP · ESC:CLOSE</span>
+    <button onclick="openWorldMap()" title="World Map (M)" style="background:#1a1a2a;border:1px solid #3344aa;color:#aabbff;padding:2px 6px;font-family:'Press Start 2P',monospace;font-size:5px;cursor:pointer;flex-shrink:0;">⊕ MAP</button>
+  </div>
+
+  <!-- Faction + Economy + Politics status bar -->
+  <div style="width:800px;display:flex;justify-content:space-between;align-items:center;padding:3px 12px;background:#080810;border:1px solid #1a1a2a;border-top:none;border-bottom:none;">
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div id="faction-status" style="display:flex;gap:6px;align-items:center;font-family:'Press Start 2P',monospace;font-size:5px;color:#334;letter-spacing:1px;">loading…</div>
+      <span style="color:#223;">·</span>
+      <div id="current-town-badge" style="font-family:'Press Start 2P',monospace;font-size:5px;color:#aa66ff;letter-spacing:1px;cursor:pointer;" title="Click to travel" onclick="openTravelMenu()">🏘 Pixel Synapse</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <div id="politics-status" style="font-family:'Press Start 2P',monospace;font-size:5px;color:#ce93d8;letter-spacing:1px;cursor:pointer;" title="Click to vote"></div>
+      <div id="wallet-status" style="font-family:'Press Start 2P',monospace;font-size:5px;color:#ffcc44;letter-spacing:1px;">◈ 50 coins</div>
+      <div id="house-status" style="font-family:'Press Start 2P',monospace;font-size:5px;color:#556677;letter-spacing:1px;">⌂ 0 items</div>
     </div>
   </div>
 
-  <div id="controls">WASD/ARROWS move · E interact · ESC close</div>
+  <!-- ═══ GAME ═══ -->
+  <div id="game-container">
+    <div id="game"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js"></script>
+    <!-- Event banner — appears at top of game world when an event is active -->
+    <div id="event-banner" style="display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:#0f0f22;border:1px solid #3344aa;padding:4px 10px;font-family:'Press Start 2P',monospace;font-size:6px;color:#ffcc44;letter-spacing:1px;z-index:60;pointer-events:none;white-space:nowrap;"></div>
+
+    <div id="minimap">
+      <canvas id="minimap-canvas" width="100" height="100"></canvas>
+      <div id="minimap-label">MAP</div>
+    </div>
+
+    <div id="player-list">
+      <div class="pl-title">// PLAYERS</div>
+      <div id="pl-entries"></div>
+    </div>
+
+    <!-- ═══ DIALOGUE BOX ═══ -->
+    <div id="dialogue-overlay">
+      <div id="dialogue-header">
+        <canvas id="dialogue-avatar" width="32" height="32"></canvas>
+        <div>
+          <div id="dialogue-npc-name">NPC</div>
+          <div id="dialogue-role">Role</div>
+        </div>
+        <div id="dialogue-emotion-wrap">
+          <div id="dialogue-emotion-dot"></div>
+          <div id="dialogue-emotion-label">● IDLE</div>
+        </div>
+      </div>
+      <div id="dialogue-text">...</div>
+      <div id="dialogue-input-area">
+        <input id="dialogue-input" type="text" placeholder="say something..." maxlength="200" />
+        <button id="dialogue-send">SEND</button>
+        <button id="dialogue-close">ESC</button>
+      </div>
+      <!-- Contextual action buttons — appear when near shops/jobs/issues -->
+      <div id="dialogue-actions" style="display:none;flex-direction:row;gap:6px;margin-top:6px;flex-wrap:wrap;"></div>
+    </div>
+
+    <!-- ═══ SHOP OVERLAY ═══ -->
+    <div id="shop-overlay" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(680px,98vw);background:#080810;border:2px solid #3344aa;border-bottom:none;padding:14px 18px 10px;z-index:1100;font-family:'Press Start 2P',monospace;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div id="shop-title" style="font-size:7px;color:#aabbff;letter-spacing:2px;">SHOP</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div id="shop-wallet" style="font-size:6px;color:#ffcc44;">◈ 50 coins</div>
+          <button id="shop-close" style="background:#1a1a2a;border:1px solid #3344aa;color:#aabbff;padding:2px 8px;font-family:'Press Start 2P',monospace;font-size:5px;cursor:pointer;">ESC</button>
+        </div>
+      </div>
+      <!-- Tabs: Buy / Work -->
+      <div style="display:flex;gap:0;margin-bottom:10px;border-bottom:1px solid #1a1a2a;">
+        <button id="tab-buy"  class="shop-tab active-tab" onclick="switchShopTab('buy')">BUY</button>
+        <button id="tab-work" class="shop-tab"            onclick="switchShopTab('work')">WORK</button>
+      </div>
+      <div id="shop-buy-panel"  style="display:block;"><div id="shop-items"  style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;"></div></div>
+      <div id="shop-work-panel" style="display:none;"> <div id="shop-jobs"   style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto;"></div></div>
+    </div>
+
+    <!-- ═══ VOTE OVERLAY ═══ -->
+    <div id="vote-overlay" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(480px,96vw);background:#080810;border:2px solid #ce93d8;padding:18px 22px;z-index:1100;font-family:'Press Start 2P',monospace;">
+      <div id="vote-title" style="font-size:7px;color:#ce93d8;letter-spacing:2px;margin-bottom:6px;">TOWN VOTE</div>
+      <div id="vote-desc"  style="font-size:6px;color:#ccdde8;line-height:1.8;margin-bottom:12px;"></div>
+      <div style="font-size:5px;color:#556677;margin-bottom:8px;">CURRENT TALLY</div>
+      <div id="vote-tally" style="display:flex;gap:12px;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button id="vote-yes" onclick="castVote('yes')" style="background:#183018;border:1px solid #44ff88;color:#44ff88;padding:6px 16px;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">YES</button>
+        <button id="vote-no"  onclick="castVote('no')"  style="background:#301818;border:1px solid #ff4444;color:#ff4444;padding:6px 16px;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">NO</button>
+        <button id="vote-close" onclick="closeVote()"   style="background:#1a1a2a;border:1px solid #334;color:#556677;padding:6px 12px;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">SKIP</button>
+      </div>
+    </div>
+
+    <!-- ═══ RELATIONSHIP STATUS PANEL ═══ -->
+    <div id="rel-panel" style="display:none;position:absolute;top:54px;right:4px;width:160px;background:#080810;border:1px solid #3344aa;padding:8px 10px;z-index:90;font-family:'Press Start 2P',monospace;font-size:5px;color:#aabbff;">
+      <div style="margin-bottom:6px;letter-spacing:1px;color:#556677;">// BONDS</div>
+      <div id="rel-entries" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
+    <!-- Chat bubble container (bubbles injected here by JS) -->
+    <div id="bubble-layer" style="position:absolute;inset:0;pointer-events:none;z-index:80;overflow:hidden;"></div>
+
+    <!-- ═══ CHAT LOG — bottom-left scrolling history ═══ -->
+    <div id="chat-log-panel" style="position:absolute;bottom:0;left:0;width:280px;max-height:120px;background:#040408cc;border-top:1px solid #1a1a2a;border-right:1px solid #1a1a2a;z-index:85;overflow-y:auto;display:flex;flex-direction:column;pointer-events:none;">
+      <div id="chat-log" style="padding:4px 6px;font-family:'Press Start 2P',monospace;font-size:5px;line-height:1.9;display:flex;flex-direction:column;gap:1px;"></div>
+    </div>
+
+    <!-- ═══ CHAT INPUT BAR — appears when T is pressed ═══ -->
+    <div id="chat-bar" style="display:none;position:absolute;bottom:0;left:0;right:0;background:#06060f;border-top:2px solid #3344aa;z-index:1200;display:none;align-items:center;gap:0;">
+      <div style="font-family:'Press Start 2P',monospace;font-size:6px;color:#3344aa;padding:0 8px;flex-shrink:0;">▸</div>
+      <input id="chat-input"
+        type="text"
+        maxlength="120"
+        placeholder="say something to everyone…"
+        autocomplete="off"
+        style="flex:1;background:transparent;border:none;outline:none;color:#ccdde8;font-family:'Press Start 2P',monospace;font-size:6px;padding:7px 4px;caret-color:#aabbff;">
+      <div id="chat-char-count" style="font-family:'Press Start 2P',monospace;font-size:4px;color:#334;padding:0 8px;flex-shrink:0;">120</div>
+      <button id="chat-send-btn" style="background:#1a1a2a;border-left:1px solid #3344aa;color:#aabbff;padding:0 10px;height:100%;font-family:'Press Start 2P',monospace;font-size:5px;cursor:pointer;border-radius:0;">SEND</button>
+    </div>
+
+    <!-- ═══ NPC MEMORY PANEL ═══ -->
+    <div id="memory-panel" style="display:none;position:absolute;top:50%;right:4px;transform:translateY(-50%);width:200px;background:#080810;border:1px solid #3344aa;padding:10px 12px;z-index:95;font-family:'Press Start 2P',monospace;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div id="mem-npc-name" style="font-size:6px;color:#aabbff;letter-spacing:1px;">MEMORY</div>
+        <button onclick="closeMemoryPanel()" style="background:none;border:none;color:#556677;cursor:pointer;font-family:'Press Start 2P',monospace;font-size:6px;">✕</button>
+      </div>
+      <div id="mem-rel-state" style="font-size:5px;margin-bottom:6px;padding:3px 6px;background:#0d0d1a;"></div>
+      <div id="mem-drama-bar" style="margin-bottom:8px;display:none;">
+        <div style="font-size:4px;color:#556677;margin-bottom:3px;">TENSION</div>
+        <div style="background:#0d0d1a;height:5px;border:1px solid #1a1a2a;"><div id="mem-drama-fill" style="height:100%;transition:width 0.4s;"></div></div>
+        <div id="mem-drama-label" style="font-size:4px;margin-top:2px;"></div>
+      </div>
+      <div style="font-size:4px;color:#556677;margin-bottom:5px;letter-spacing:1px;">WHAT I REMEMBER</div>
+      <div id="mem-entries" style="display:flex;flex-direction:column;gap:5px;max-height:200px;overflow-y:auto;"></div>
+      <div id="mem-count" style="font-size:4px;color:#334;margin-top:6px;text-align:right;"></div>
+    </div>
+
+    <!-- ═══ DRAMA TICKER — scrolls across screen on public events ═══ -->
+    <div id="drama-ticker" style="display:none;position:absolute;bottom:170px;left:0;right:0;background:#1a0008;border-top:1px solid #ff4444;border-bottom:1px solid #ff4444;padding:6px 0;overflow:hidden;z-index:200;pointer-events:none;">
+      <div id="drama-ticker-text" style="font-family:'Press Start 2P',monospace;font-size:6px;color:#ff4444;white-space:nowrap;will-change:transform;">DRAMA EVENT</div>
+    </div>
+
+    <!-- ═══ LEVEL-UP OVERLAY ═══ -->
+    <div id="levelup-overlay" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#080810;border:2px solid #ffcc44;padding:24px 32px;z-index:1100;font-family:'Press Start 2P',monospace;text-align:center;min-width:320px;">
+      <div style="font-size:7px;color:#ffcc44;letter-spacing:3px;margin-bottom:6px;">LEVEL UP!</div>
+      <div id="lu-level"  style="font-size:22px;color:#ffffff;margin:8px 0;font-family:'Press Start 2P',monospace;"></div>
+      <div id="lu-title"  style="font-size:8px;color:#aabbff;margin-bottom:12px;"></div>
+      <div id="lu-unlock" style="display:none;background:#0d1a0d;border:1px solid #44ff88;padding:8px 12px;margin-bottom:12px;">
+        <div style="font-size:5px;color:#44ff88;letter-spacing:1px;margin-bottom:4px;">✦ UNLOCKED</div>
+        <div id="lu-unlock-label" style="font-size:6px;color:#ccdde8;"></div>
+        <div id="lu-unlock-desc"  style="font-size:5px;color:#556677;margin-top:3px;"></div>
+      </div>
+      <button onclick="closeLevelUp()" style="background:#1a1a2a;border:1px solid #ffcc44;color:#ffcc44;padding:6px 18px;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;letter-spacing:1px;">CONTINUE</button>
+    </div>
+
+    <!-- ═══ SKILL TREE PANEL ═══ -->
+    <div id="skill-panel" style="display:none;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(560px,98vw);background:#080810;border:2px solid #ce93d8;border-bottom:none;padding:14px 20px 12px;z-index:1100;font-family:'Press Start 2P',monospace;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:7px;color:#ce93d8;letter-spacing:2px;">SKILLS</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <span id="skill-points-badge" style="font-size:6px;color:#ffcc44;">0 points</span>
+          <button onclick="closeSkillPanel()" style="background:#1a1a2a;border:1px solid #3344aa;color:#aabbff;padding:2px 8px;font-family:'Press Start 2P',monospace;font-size:5px;cursor:pointer;">ESC</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="skill-path" id="skill-social">
+          <div class="skill-path-title" style="color:#44ff88;">SOCIAL</div>
+          <div class="skill-path-desc">Better relationships, persuasion, gossip resistance</div>
+          <div class="skill-path-level"><span id="sk-social-val">0</span></div>
+          <button class="skill-btn" onclick="investSkill('social')">INVEST</button>
+        </div>
+        <div class="skill-path" id="skill-economic">
+          <div class="skill-path-title" style="color:#ffcc44;">ECONOMIC</div>
+          <div class="skill-path-desc">Better job pay, shop discounts, market access</div>
+          <div class="skill-path-level"><span id="sk-economic-val">0</span></div>
+          <button class="skill-btn" onclick="investSkill('economic')">INVEST</button>
+        </div>
+        <div class="skill-path" id="skill-political">
+          <div class="skill-path-title" style="color:#ce93d8;">POLITICAL</div>
+          <div class="skill-path-desc">Stronger vote influence, faction rep multiplier</div>
+          <div class="skill-path-level"><span id="sk-political-val">0</span></div>
+          <button class="skill-btn" onclick="investSkill('political')">INVEST</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ MOBILE CONTROLS ═══ -->
+    <!-- Only shown on touch devices (injected by JS after detection) -->
+    <div id="mobile-controls" style="display:none;position:absolute;bottom:0;left:0;right:0;height:160px;pointer-events:none;z-index:300;">
+      <!-- Left: virtual joystick -->
+      <div id="joystick-zone" style="position:absolute;bottom:20px;left:24px;width:120px;height:120px;pointer-events:all;">
+        <div id="joystick-base" style="position:absolute;inset:0;border-radius:50%;background:#0a0a1a;border:2px solid #3344aa44;opacity:0.85;"></div>
+        <div id="joystick-knob" style="position:absolute;width:44px;height:44px;border-radius:50%;background:#3344aa;border:2px solid #aabbff;top:50%;left:50%;transform:translate(-50%,-50%);transition:none;"></div>
+      </div>
+      <!-- Right: action buttons -->
+      <div style="position:absolute;bottom:20px;right:24px;display:flex;flex-direction:column;gap:10px;align-items:flex-end;pointer-events:all;">
+        <button id="btn-interact" ontouchstart="mobileInteract(event)" style="width:64px;height:64px;border-radius:50%;background:#1a2a1a;border:3px solid #44ff88;color:#44ff88;font-family:'Press Start 2P',monospace;font-size:9px;cursor:pointer;">E</button>
+        <button id="btn-chat" ontouchstart="mobileChatToggle(event)" style="width:48px;height:48px;border-radius:50%;background:#1a1a2a;border:2px solid #3344aa;color:#aabbff;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">T</button>
+        <button id="btn-esc" ontouchstart="mobileEsc(event)" style="width:40px;height:40px;border-radius:50%;background:#1a1a2a;border:2px solid #3344aa;color:#aabbff;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">ESC</button>
+      </div>
+    </div>
+
+    <!-- ═══ WORLD MAP OVERLAY (press M) ═══ -->
+    <div id="world-map-overlay" style="display:none;position:fixed;inset:0;background:#04040c;z-index:1100;font-family:'Press Start 2P',monospace;">
+      <div style="position:absolute;top:14px;left:50%;transform:translateX(-50%);font-size:9px;color:#aabbff;letter-spacing:4px;">⊕ WORLD MAP</div>
+      <div style="position:absolute;top:34px;left:50%;transform:translateX(-50%);font-size:5px;color:#334;letter-spacing:1px;">click a town to travel · M or ESC to close</div>
+      <!-- SVG map canvas -->
+      <svg id="world-map-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"
+        style="position:absolute;inset:0;width:100%;height:100%;cursor:default;">
+        <!-- Connection lines injected by JS -->
+        <g id="wm-lines"></g>
+        <!-- Town nodes injected by JS -->
+        <g id="wm-nodes"></g>
+      </svg>
+      <!-- Town info card (shown on hover/click) -->
+      <div id="wm-info" style="display:none;position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:#080810;border:1px solid #3344aa;padding:10px 16px;min-width:320px;max-width:480px;text-align:center;">
+        <div id="wm-info-name"  style="font-size:7px;color:#aabbff;margin-bottom:4px;"></div>
+        <div id="wm-info-sub"   style="font-size:5px;color:#556677;margin-bottom:6px;"></div>
+        <div id="wm-info-desc"  style="font-size:5px;color:#ccdde8;line-height:1.8;margin-bottom:8px;"></div>
+        <div id="wm-info-stats" style="display:flex;gap:12px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;"></div>
+        <button id="wm-travel-btn" onclick="wmTravelTo()" style="display:none;background:#1a2a1a;border:1px solid #44ff88;color:#44ff88;padding:5px 18px;font-family:'Press Start 2P',monospace;font-size:6px;cursor:pointer;">TRAVEL THERE ▸</button>
+        <span   id="wm-here-badge" style="display:none;font-size:5px;color:#556677;">[ YOU ARE HERE ]</span>
+      </div>
+    </div>
+
+    <!-- ═══ TOWN TRAVEL OVERLAY ═══ -->
+    <!-- z-index 1100 beats the scanline overlay (999) and everything else -->
+    <div id="travel-overlay" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,96vw);max-height:90vh;overflow-y:auto;background:#080810;border:2px solid #aa66ff;padding:18px 22px 16px;z-index:1100;font-family:'Press Start 2P',monospace;">
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <div style="font-size:8px;color:#aa66ff;letter-spacing:3px;">⟡ TRANSIT HUB</div>
+        <button onclick="closeTravelMenu()" style="background:none;border:none;color:#556677;font-family:'Press Start 2P',monospace;font-size:7px;cursor:pointer;">✕</button>
+      </div>
+      <div style="font-size:5px;color:#334;margin-bottom:14px;letter-spacing:1px;">Select a destination — E or ESC to close</div>
+      <!-- Current town badge -->
+      <div id="travel-current" style="font-size:5px;color:#556677;margin-bottom:10px;"></div>
+      <!-- Town list -->
+      <div id="travel-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;"></div>
+      <!-- Footer note -->
+      <div style="margin-top:10px;font-size:4px;color:#223;letter-spacing:1px;border-top:1px solid #1a1a2a;padding-top:6px;">Different towns have different NPCs, prices and politics</div>
+    </div>
+
+    <div id="thinking">▸ thinking...</div>
+    <div id="toast"></div>
+  </div>
+
+  <script src="ui.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
