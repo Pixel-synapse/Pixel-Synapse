@@ -291,24 +291,46 @@ const SPR_NPC_WALK_B = SPR_NPC_IDLE.map((row, y) => {
 });
 
 // ── OBJECTS ──
-const SPR_TREE = [
-  '____KKKKKK______',
-  '___KGGGGGgK_____',
-  '__KGGLGGLGgK____',
-  '_KGGGGGGGGGgK___',
-  '_KGLGGGGGLGgK___',
-  'KGGGGGGGGGGGgK__',
-  'KGGLGGGGGLGGgK__',
-  'KGGGGGGGGGGGGK__',
-  '_KKGGGGGGGKK____',
-  '____KRRRRK______',
-  '____KRRRrK______',
-  '____KRrrRK______',
-  '____KrRRrK______',
-  '____KKKKKK______',
+// ── TREE — split into two layers for proper depth sorting ──
+// Leaves: visual only, high depth so player walks behind when below trunk
+// Trunk:  collision + low depth so player walks in front when below
+const SPR_TREE_LEAVES = [
+  '___KKKKKKKKK____',  // wider round top
+  '__KGGGGGGGGGgK__',
+  '_KGGLGGGGLGGGgK_',
+  'KGGGGGGGGGGGGGgK',
+  'KGGLGGGGGGGLGGgK',
+  'KGGGGGGGGGGGGGgK',
+  '_KGGGLGGGLGGGgK_',
+  '_KGGGGGGGGGGGgK_',
+  '__KKGGGGGGGKKg__',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
   '________________',
   '________________',
 ];
+const SPR_TREE_TRUNK = [
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '________________',
+  '_____KrRRRK_____',  // roots spread wider
+  '_____KRRRRrK____',
+  '____KrRRRRRK____',
+  '____KRRrrRRK____',
+  '____KKKKKKKK____',
+  '________________',
+  '________________',
+];
+const SPR_TREE = SPR_TREE_LEAVES;  // backward compat
 const SPR_TABLE = [
   '________________',
   '__KKKKKKKKKKKK__',
@@ -1658,83 +1680,184 @@ function createTextures(scene) {
   //
   // Pokémon-style: cream walls, bright red/blue roofs, windows, door
 
-  function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label) {
+  // ── Building renderer — each type has its own distinct GBA Pokémon style ──
+  function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label, variant) {
     const px = tx * TILE_SIZE, py = ty * TILE_SIZE;
     const bw = tw * TILE_SIZE, bh = th * TILE_SIZE;
+    const roofH = Math.floor(TILE_SIZE * 1.8);
+    const S = TILE_SIZE;
 
-    // Wall base
+    // ── WALL ──
     ctx.fillStyle = wallColor;
     ctx.fillRect(px, py, bw, bh);
-
-    // Wall shadow (left + bottom edges)
-    ctx.fillStyle = darkenHex(wallColor, 15);
+    // Horizontal brick lines on lower wall
+    ctx.fillStyle = darkenHex(wallColor, 10);
+    for (let wy = py + roofH + 6; wy < py + bh - 4; wy += 7) {
+      ctx.fillRect(px + 2, wy, bw - 4, 1);
+    }
+    // Wall shadow L+B
+    ctx.fillStyle = darkenHex(wallColor, 18);
     ctx.fillRect(px, py, 2, bh);
     ctx.fillRect(px, py + bh - 2, bw, 2);
+    // Wall highlight top
+    ctx.fillStyle = lightenHex(wallColor, 22);
+    ctx.fillRect(px + 2, py + roofH, bw - 4, 2);
 
-    // Wall highlight (top edge)
-    ctx.fillStyle = lightenHex(wallColor, 20);
-    ctx.fillRect(px, py, bw, 2);
-
-    // Roof strip (top 1.5 tiles)
-    const roofH = Math.floor(TILE_SIZE * 1.5);
-    ctx.fillStyle = roofColor;
-    ctx.fillRect(px, py, bw, roofH);
-    ctx.fillStyle = lightenHex(roofColor, 25);
-    ctx.fillRect(px, py, bw, 3);                 // roof highlight top
-    ctx.fillStyle = darkenHex(roofColor, 20);
-    ctx.fillRect(px, py + roofH - 2, bw, 2);     // roof shadow bottom
-
-    // Windows (2px frame, bright tint)
-    const winCols = Math.max(1, tw - 1);
-    for (let wi = 0; wi < winCols; wi++) {
-      const wx = px + 8 + wi * 20;
-      const wy = py + roofH + 6;
-      ctx.fillStyle = '#b8e0ff';
-      ctx.fillRect(wx, wy, 10, 8);
-      ctx.fillStyle = '#dff0ff';
-      ctx.fillRect(wx, wy, 5, 4);               // highlight
-      ctx.fillStyle = '#181018';
-      ctx.strokeRect(wx, wy, 10, 8);            // window frame
+    // ── ROOF — distinct per variant ──
+    if (variant === 'shop') {
+      // Flat roof with parapet and striped awning
+      ctx.fillStyle = roofColor;
+      ctx.fillRect(px, py, bw, roofH);
+      // Parapet crenellations
+      ctx.fillStyle = darkenHex(roofColor, 15);
+      for (let cx2 = px + 3; cx2 < px + bw - 3; cx2 += 8) {
+        ctx.fillRect(cx2, py, 4, 5);
+      }
+      // Awning stripes below roof
+      const aw = py + roofH;
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i % 2 === 0 ? roofColor : lightenHex(roofColor, 30);
+        ctx.fillRect(px + 4, aw + i * 3, bw - 8, 3);
+      }
+      // Shop sign board
+      const signW = bw - 16;
+      ctx.fillStyle = darkenHex(roofColor, 5);
+      ctx.fillRect(px + 8, py + roofH + 14, signW, 12);
+      ctx.strokeStyle = lightenHex(roofColor, 25);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + 8, py + roofH + 14, signW, 12);
+      ctx.fillStyle = '#f8f8f8';
+      ctx.font = '6px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('SHOP', px + bw/2, py + roofH + 23);
+    } else {
+      // Pitched roof — GBA house style with ridge line
+      ctx.fillStyle = roofColor;
+      ctx.fillRect(px, py, bw, roofH);
+      // Roof tiles pattern
+      ctx.fillStyle = darkenHex(roofColor, 12);
+      for (let row = 0; row < roofH; row += 4) {
+        const off = (row / 4) % 2 === 0 ? 0 : 5;
+        for (let cx2 = px + off; cx2 < px + bw; cx2 += 10) {
+          ctx.fillRect(cx2, py + row, 8, 3);
+        }
+      }
+      // Ridge line top
+      ctx.fillStyle = lightenHex(roofColor, 30);
+      ctx.fillRect(px + 4, py, bw - 8, 2);
+      // Eave shadow
+      ctx.fillStyle = darkenHex(roofColor, 22);
+      ctx.fillRect(px, py + roofH - 2, bw, 3);
+      // Chimney (houses only)
+      if (variant === 'house_red' || variant === 'house_blue') {
+        const chX = px + bw - 18;
+        ctx.fillStyle = '#888070';
+        ctx.fillRect(chX, py - 8, 8, roofH + 2);
+        ctx.fillStyle = '#606050';
+        ctx.fillRect(chX - 1, py - 10, 10, 4);
+        // Smoke puff
+        ctx.fillStyle = 'rgba(200,200,200,0.5)';
+        ctx.beginPath(); ctx.arc(chX + 3, py - 16, 4, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(chX + 7, py - 20, 3, 0, Math.PI*2); ctx.fill();
+      }
     }
 
-    // Door (centred)
-    const dx = px + Math.floor(bw / 2) - 5;
-    const dy = py + bh - 20;
-    ctx.fillStyle = '#c07030';                  // door wood
-    ctx.fillRect(dx, dy, 10, 20);
-    ctx.fillStyle = '#804010';
-    ctx.fillRect(dx, dy, 2, 20);               // door shadow
-    ctx.fillStyle = '#e0d0b0';
-    ctx.fillRect(dx + 7, dy + 8, 2, 2);        // door knob
+    // ── WINDOWS — distinct per variant ──
+    const winY = py + roofH + 8;
+    if (variant === 'shop') {
+      // Large display window
+      const ww = bw - 24, wh = 22;
+      ctx.fillStyle = '#b8e8ff';
+      ctx.fillRect(px + 12, winY, ww, wh);
+      // Window shine diagonal
+      ctx.fillStyle = '#e8f8ff';
+      ctx.fillRect(px + 14, winY + 2, 6, wh - 4);
+      // Frame
+      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1;
+      ctx.strokeRect(px + 12, winY, ww, wh);
+      // Cross dividers
+      ctx.fillStyle = '#181018';
+      ctx.fillRect(px + 12 + ww/2 - 1, winY, 2, wh);
+    } else {
+      // Two separate windows with curtains
+      const positions = tw >= 7
+        ? [px + 8, px + bw/2 - 5, px + bw - 22]
+        : [px + 8, px + bw - 22];
+      positions.forEach(wx => {
+        // Window glass
+        ctx.fillStyle = '#b8e0ff';
+        ctx.fillRect(wx, winY, 12, 10);
+        // Curtain left
+        ctx.fillStyle = roofColor;
+        ctx.fillRect(wx, winY, 4, 10);
+        // Curtain right
+        ctx.fillRect(wx + 8, winY, 4, 10);
+        // Glass shine
+        ctx.fillStyle = '#e0f4ff';
+        ctx.fillRect(wx + 4, winY + 1, 4, 3);
+        // Cross divider
+        ctx.fillStyle = '#181018';
+        ctx.fillRect(wx + 5, winY, 2, 10);
+        ctx.fillRect(wx, winY + 4, 12, 1);
+        // Frame
+        ctx.strokeStyle = '#181018'; ctx.lineWidth = 1;
+        ctx.strokeRect(wx, winY, 12, 10);
+      });
+    }
 
-    // Building outline
+    // ── DOOR — centred, taller for shop ──
+    const doorW  = variant === 'shop' ? 16 : 12;
+    const doorH2 = variant === 'shop' ? 24 : 18;
+    const dx = px + Math.floor(bw / 2) - Math.floor(doorW / 2);
+    const dy = py + bh - doorH2;
+    // Door frame
+    ctx.fillStyle = darkenHex(wallColor, 20);
+    ctx.fillRect(dx - 2, dy - 2, doorW + 4, doorH2 + 2);
+    // Door body
+    ctx.fillStyle = '#c07030';
+    ctx.fillRect(dx, dy, doorW, doorH2);
+    // Door panels
+    ctx.fillStyle = '#a05020';
+    ctx.fillRect(dx + 2, dy + 2, doorW - 4, doorH2/2 - 3);
+    ctx.fillRect(dx + 2, dy + doorH2/2 + 1, doorW - 4, doorH2/2 - 3);
+    // Door shadow
+    ctx.fillStyle = '#804010';
+    ctx.fillRect(dx, dy, 2, doorH2);
+    // Knob
+    ctx.fillStyle = '#f8d030';
+    ctx.fillRect(dx + doorW - 4, dy + Math.floor(doorH2 * 0.55), 3, 3);
+    // Step
+    ctx.fillStyle = darkenHex(wallColor, 25);
+    ctx.fillRect(dx - 3, py + bh - 2, doorW + 6, 2);
+
+    // ── OUTLINE ──
     ctx.strokeStyle = '#181018';
     ctx.lineWidth = 1;
     ctx.strokeRect(px, py, bw, bh);
 
-    // Sign above building
-    if (label) {
+    // ── NAME LABEL above (except shop — has its own sign) ──
+    if (label && variant !== 'shop') {
       const sw = label.length * 5 + 10;
-      ctx.fillStyle = darkenHex(roofColor, 10);
-      ctx.fillRect(px + bw / 2 - sw / 2, py - 9, sw, 9);
+      ctx.fillStyle = darkenHex(roofColor, 8);
+      ctx.fillRect(px + bw/2 - sw/2, py - 10, sw, 10);
       ctx.strokeStyle = lightenHex(roofColor, 20);
       ctx.lineWidth = 1;
-      ctx.strokeRect(px + bw / 2 - sw / 2, py - 9, sw, 9);
+      ctx.strokeRect(px + bw/2 - sw/2, py - 10, sw, 10);
       ctx.fillStyle = '#f8f8f8';
       ctx.font = '5px "Press Start 2P", monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(label, px + bw / 2, py - 2);
+      ctx.fillText(label, px + bw/2, py - 2);
     }
   }
 
-  // House 1 — NW (red roof, cream wall)
-  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', "HOUSE");
-  // House 2 — NE (blue roof, cream wall)
-  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#f0e8c0', "HOUSE");
-  // House 3 — SW (red roof, cream wall, slightly wider)
-  drawBuilding(ctx, 5,  36, 7, 5, '#e82020', '#f0e8c0', "HOME");
-  // Shop    — SE (green roof, cream wall)
-  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#f0e8c0', "SHOP");
+  // House 1 — NW: red-roof house (classic Pokémon home)
+  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', 'HOME',   'house_red');
+  // House 2 — NE: blue-roof house (scholar style)
+  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#e8eaf8', 'HOUSE',  'house_blue');
+  // House 3 — SW: red-roof elder home (wider)
+  drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S",'house_red');
+  // Shop — SE: green flat-roof shop
+  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',   'shop');
 
   // ── 5. DECORATIVE TREES (drawn into canvas only — shadow layer) ──
   // These are background-only trees (no depth / collision).
@@ -1843,37 +1966,49 @@ function spawnCityWorldObjects(scene) {
     [20,12],[31,12],[12,20],[12,31],[38,20],[38,31],
   ];
 
-  // Create a texture for trees (using SPR_TREE, drawn at 2× via canvas)
-  if (!scene.textures.exists('tree_obj')) {
-    if (scene.textures.exists('tree_obj')) scene.textures.remove('tree_obj');
-    const treeCanvas = scene.textures.createCanvas('tree_obj', 16, 16);
-    const tCtx = treeCanvas.getContext();
-    tCtx.imageSmoothingEnabled = false;
-    drawSprite(tCtx, SPR_TREE, 0, 0, 1);
-    treeCanvas.refresh();
-  }
+  // ── Build trunk and leaves textures ──
+  ['tree_trunk', SPR_TREE_TRUNK, 'tree_leaves', SPR_TREE_LEAVES].reduce((acc, val, i, arr) => {
+    if (i % 2 === 0) acc.push([arr[i], arr[i+1]]);
+    return acc;
+  }, []).forEach(([key, spr]) => {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
+    const tc = scene.textures.createCanvas(key, 16, 16);
+    drawSprite(tc.getContext(), spr, 0, 0, 1);
+    tc.refresh();
+  });
 
-  // Physics static group for tree collisions
+  // Physics static group for tree trunk collisions
   if (!gameState.treeGroup) {
     gameState.treeGroup = scene.physics.add.staticGroup();
   }
+
+  console.log('[trees] Tree Layer Active — trunk Y-sorted · leaves always above player');
 
   treeTiles.forEach(([tx, ty]) => {
     const wx = tx * T + T / 2;
     const wy = ty * T + T / 2;
 
-    // Visual tree sprite (scale=2 → 32px display)
-    const img = scene.add.image(wx, wy, 'tree_obj')
-      .setScale(2)
-      .setOrigin(0.5, 0.5);
-    // Y-depth: trees deeper on screen render in front of player
-    img.setDepth(wy + T);    // +T so the tree renders over player walking near base
-    gameState.worldObjects.push(img);
+    // ── TRUNK — Y-sorted with player ──
+    // When player Y > trunk Y → player renders in front (walked past the tree)
+    // When player Y < trunk Y → trunk renders in front (player behind tree)
+    const trunk = scene.add.image(wx, wy + 6, 'tree_trunk')
+      .setScale(2).setOrigin(0.5, 0.5);
+    trunk.setDepth(wy + 6);           // matches player depth system
+    gameState.worldObjects.push(trunk);
 
-    // Collision body — small rectangle at tree trunk base
-    const body = scene.physics.add.staticImage(wx, wy + 6, null)
+    // ── LEAVES — depth = wy + 300 ──
+    // Always renders above any player (max player Y ≈ 800, leaves at wy+300
+    // means leaves appear "over" the player whenever they're near the tree.
+    // The trunk below is Y-sorted, creating the illusion of walking behind.
+    const leaves = scene.add.image(wx, wy - 4, 'tree_leaves')
+      .setScale(2).setOrigin(0.5, 0.5);
+    leaves.setDepth(wy + 300);        // always in front of player at same tile
+    gameState.worldObjects.push(leaves);
+
+    // ── Collision body — trunk base only (6×8px at foot of trunk) ──
+    const body = scene.physics.add.staticImage(wx, wy + 10, null)
       .setVisible(false);
-    body.setDisplaySize(14, 8);
+    body.setDisplaySize(12, 8);
     body.refreshBody();
     gameState.worldObjects.push(body);
     gameState.treeGroup.add(body);
@@ -1887,10 +2022,10 @@ function spawnCityWorldObjects(scene) {
 
   // Buildings [tileX, tileY, tileW, tileH, roofColor, label]
   const buildingDefs = [
-    { tx:5,  ty:5,  tw:6, th:5, color:'#e82020', label:'HOUSE', id:'house_nw' },
-    { tx:36, ty:5,  tw:6, th:5, color:'#2848c0', label:'HOUSE', id:'house_ne' },
-    { tx:5,  ty:36, tw:7, th:5, color:'#e82020', label:'HOME',  id:'house_sw' },
-    { tx:36, ty:36, tw:7, th:5, color:'#289048', label:'SHOP',  id:'shop_se'  },
+    { tx:5,  ty:5,  tw:6, th:5, color:'#e82020', label:'HOME',    id:'house_nw' },
+    { tx:36, ty:5,  tw:6, th:5, color:'#2848c0', label:'HOUSE',   id:'house_ne' },
+    { tx:5,  ty:36, tw:7, th:5, color:'#c82018', label:"ELDER'S", id:'house_sw' },
+    { tx:36, ty:36, tw:7, th:5, color:'#289048', label:'SHOP',    id:'shop_se'  },
   ];
 
   if (!gameState.buildingGroup) {
@@ -4352,72 +4487,269 @@ function _escHtml(str) {
 // ═════════════════════════════════════════════════════════════════
 const INTERIOR_DEFS = {
   house_nw: {
-    bg: '#2a1a0a',
-    wallColor: '#f0e8c0',
+    bg: '#1a1208', title: 'MY HOUSE',
+    wallCol: 0xf0e8c0, floorVariant: 'warm',
     furniture: [
-      { type:'bed',   x:60,  y:80,  w:70, h:50, col:0x2848c0, label:'BED'   },
-      { type:'bed',   x:340, y:80,  w:70, h:50, col:0x2848c0, label:'BED'   },
-      { type:'table', x:185, y:150, w:90, h:40, col:0xc07030, label:'TABLE' },
-      { type:'chair', x:155, y:195, w:30, h:28, col:0x804010, label:''      },
-      { type:'chair', x:295, y:195, w:30, h:28, col:0x804010, label:''      },
-      { type:'shelf', x:30,  y:140, w:40, h:80, col:0xa05820, label:'SHELF' },
-      { type:'shelf', x:410, y:140, w:40, h:80, col:0xa05820, label:'SHELF' },
+      // Bed (top-left) — headboard + pillow + blanket
+      { type:'bed',     x:32,  y:48,  w:80, h:56, col:0x2848c0,
+        detail:[
+          { x:32,  y:48,  w:80, h:12, col:0x804010 }, // headboard
+          { x:38,  y:62,  w:26, h:18, col:0xf0f0f8 }, // pillow
+          { x:70,  y:60,  w:38, h:28, col:0x3878f8 }, // blanket fold
+        ], label:'BED'
+      },
+      // Second bed (top-right)
+      { type:'bed',     x:368, y:48,  w:80, h:56, col:0x2848c0,
+        detail:[
+          { x:368, y:48,  w:80, h:12, col:0x804010 },
+          { x:374, y:62,  w:26, h:18, col:0xf0f0f8 },
+          { x:406, y:60,  w:38, h:28, col:0x3878f8 },
+        ], label:'BED'
+      },
+      // Dining table
+      { type:'table',   x:168, y:152, w:144,h:44, col:0xc07030,
+        detail:[
+          { x:168, y:152, w:144, h:6,  col:0xe09040 }, // table top highlight
+          { x:172, y:192, w:8,   h:20, col:0x804010 }, // left leg
+          { x:300, y:192, w:8,   h:20, col:0x804010 }, // right leg
+        ], label:'TABLE'
+      },
+      // Chairs
+      { type:'chair',   x:144, y:200, w:32, h:28, col:0x904818, label:'' },
+      { type:'chair',   x:312, y:200, w:32, h:28, col:0x904818, label:'' },
+      // Bookshelf (left wall)
+      { type:'shelf',   x:16,  y:120, w:32, h:100, col:0xa05820,
+        detail:[
+          { x:18,  y:128, w:28, h:6,  col:0x3060e0 }, // book row 1
+          { x:18,  y:140, w:28, h:6,  col:0xe82020 }, // book row 2
+          { x:18,  y:152, w:28, h:6,  col:0x289048 }, // book row 3
+          { x:18,  y:164, w:28, h:6,  col:0xf8d030 }, // book row 4
+        ], label:'SHELF'
+      },
+      // Plant (right wall)
+      { type:'plant',   x:424, y:130, w:28, h:60, col:0x289048,
+        detail:[
+          { x:434, y:174, w:8,  h:16, col:0x804010 }, // pot
+          { x:428, y:156, w:20, h:20, col:0x50b020 }, // leaves
+          { x:432, y:142, w:12, h:18, col:0x78c840 }, // upper leaves
+        ], label:''
+      },
     ],
-    npcs: [
-      { name:'Resident', color:'#f8d030', x:200, y:200, lines:["Welcome to my home!", "Make yourself at home.", "Lovely weather today."] },
+    npcs:[
+      { name:'Resident', color:'#f8d030', x:240, y:210,
+        lines:["Welcome to my home!","Make yourself at home.","Lovely weather today.","Can I get you some tea?"] },
     ],
   },
+
   house_ne: {
-    bg: '#0a1a2a',
-    wallColor: '#d0d8f0',
+    bg: '#080c18', title: "SCHOLAR'S STUDY",
+    wallCol: 0xd0d8f0, floorVariant: 'cool',
     furniture: [
-      { type:'bed',   x:60,  y:80,  w:70, h:50, col:0x3060e0, label:'BED'   },
-      { type:'desk',  x:340, y:90,  w:80, h:50, col:0xc07030, label:'DESK'  },
-      { type:'chair', x:350, y:145, w:30, h:28, col:0x804010, label:''      },
-      { type:'shelf', x:30,  y:130, w:40, h:90, col:0xa05820, label:'BOOKS' },
-      { type:'shelf', x:410, y:130, w:40, h:90, col:0xa05820, label:'BOOKS' },
-      { type:'table', x:185, y:160, w:90, h:40, col:0xc07030, label:'TABLE' },
+      // Bed
+      { type:'bed',     x:32,  y:48,  w:80, h:56, col:0x102060,
+        detail:[
+          { x:32,  y:48,  w:80, h:12, col:0x080830 },
+          { x:38,  y:62,  w:26, h:18, col:0xe0e8ff },
+          { x:70,  y:60,  w:38, h:28, col:0x2040a0 },
+        ], label:'BED'
+      },
+      // Large desk (right side)
+      { type:'desk',    x:340, y:80,  w:100, h:60, col:0xb06828,
+        detail:[
+          { x:340, y:80,  w:100, h:6,  col:0xd08840 }, // desktop highlight
+          { x:346, y:88,  w:40,  h:30, col:0x181028 }, // screen/book
+          { x:352, y:90,  w:28,  h:26, col:0x3060e0 }, // screen glow
+          { x:390, y:90,  w:40,  h:28, col:0xf0e8d0 }, // papers
+        ], label:'DESK'
+      },
+      { type:'chair',   x:370, y:144, w:30,  h:28, col:0x804010, label:'' },
+      // Tall bookshelves both walls
+      { type:'shelf',   x:16,  y:100, w:32,  h:140, col:0x8a4818,
+        detail:[
+          { x:18, y:108, w:28, h:6, col:0xe82020 },
+          { x:18, y:120, w:28, h:6, col:0x3060e0 },
+          { x:18, y:132, w:28, h:6, col:0xf8d030 },
+          { x:18, y:144, w:28, h:6, col:0x289048 },
+          { x:18, y:156, w:28, h:6, col:0x9030c0 },
+          { x:18, y:168, w:28, h:6, col:0xe06020 },
+        ], label:'BOOKS'
+      },
+      { type:'shelf',   x:432, y:100, w:32,  h:140, col:0x8a4818,
+        detail:[
+          { x:434, y:108, w:28, h:6, col:0x289048 },
+          { x:434, y:120, w:28, h:6, col:0xe82020 },
+          { x:434, y:132, w:28, h:6, col:0x3060e0 },
+          { x:434, y:144, w:28, h:6, col:0xf8d030 },
+        ], label:'BOOKS'
+      },
+      // Small table + chair centre
+      { type:'table',   x:186, y:160, w:90,  h:40, col:0xb06828,
+        detail:[ { x:186, y:160, w:90, h:5, col:0xd08840 } ], label:'TABLE'
+      },
+      { type:'chair',   x:154, y:204, w:30,  h:26, col:0x804010, label:'' },
+      { type:'chair',   x:296, y:204, w:30,  h:26, col:0x804010, label:'' },
+      // Globe
+      { type:'deco',    x:216, y:138, w:24,  h:24, col:0x3898f8,
+        detail:[ { x:222, y:138, w:12, h:12, col:0x50b020 } ], label:'GLOBE'
+      },
     ],
-    npcs: [
-      { name:'Scholar', color:'#78c8f8', x:360, y:160, lines:["I'm studying the stars.", "Knowledge is power!", "Have you read this?"] },
+    npcs:[
+      { name:'Scholar', color:'#78c8f8', x:380, y:150,
+        lines:["I'm studying the stars.","Knowledge is power!","Have you read this?","The cosmos is vast..."] },
     ],
   },
+
   house_sw: {
-    bg: '#1a0a0a',
-    wallColor: '#f8e8d0',
+    bg: '#100808', title: "ELDER'S HOME",
+    wallCol: 0xf8e0c8, floorVariant: 'warm',
     furniture: [
-      { type:'bed',   x:60,  y:80,  w:70, h:50, col:0xe82020, label:'BED'   },
-      { type:'bed',   x:340, y:80,  w:70, h:50, col:0xe82020, label:'BED'   },
-      { type:'table', x:155, y:155, w:130,h:45, col:0xc07030, label:'DINING'},
-      { type:'chair', x:125, y:200, w:28, h:26, col:0x804010, label:''      },
-      { type:'chair', x:310, y:200, w:28, h:26, col:0x804010, label:''      },
-      { type:'plant', x:410, y:130, w:30, h:50, col:0x289048, label:'PLANT' },
-      { type:'plant', x:30,  y:130, w:30, h:50, col:0x289048, label:'PLANT' },
+      // Wide bed
+      { type:'bed',     x:32,  y:48,  w:96,  h:56, col:0x802020,
+        detail:[
+          { x:32,  y:48,  w:96, h:12, col:0x501010 },
+          { x:38,  y:64,  w:30, h:16, col:0xfff0e0 },
+          { x:78,  y:60,  w:44, h:28, col:0xd04030 },
+        ], label:'BED'
+      },
+      // Large dining table
+      { type:'table',   x:144, y:148, w:192, h:50, col:0xc07030,
+        detail:[
+          { x:144, y:148, w:192, h:7, col:0xe09040 },
+          { x:150, y:196, w:10,  h:18, col:0x804010 },
+          { x:326, y:196, w:10,  h:18, col:0x804010 },
+          // Plates on table
+          { x:176, y:156, w:20, h:16, col:0xf8f0e8 },
+          { x:216, y:156, w:20, h:16, col:0xf8f0e8 },
+          { x:256, y:156, w:20, h:16, col:0xf8f0e8 },
+          { x:296, y:156, w:20, h:16, col:0xf8f0e8 },
+        ], label:'DINING'
+      },
+      { type:'chair',   x:120, y:198, w:30, h:26, col:0x904818, label:'' },
+      { type:'chair',   x:330, y:198, w:30, h:26, col:0x904818, label:'' },
+      { type:'chair',   x:184, y:198, w:26, h:24, col:0x904818, label:'' },
+      { type:'chair',   x:270, y:198, w:26, h:24, col:0x904818, label:'' },
+      // Tall plants both sides
+      { type:'plant',   x:16,  y:116, w:30, h:72, col:0x289048,
+        detail:[
+          { x:22,  y:168, w:18, h:20, col:0x804010 },
+          { x:16,  y:140, w:28, h:28, col:0x50b020 },
+          { x:20,  y:120, w:20, h:24, col:0x78d038 },
+        ], label:''
+      },
+      { type:'plant',   x:434, y:116, w:30, h:72, col:0x289048,
+        detail:[
+          { x:440, y:168, w:18, h:20, col:0x804010 },
+          { x:434, y:140, w:28, h:28, col:0x50b020 },
+          { x:438, y:120, w:20, h:24, col:0x78d038 },
+        ], label:''
+      },
+      // Fireplace (right wall area)
+      { type:'deco',    x:390, y:80,  w:56, h:60, col:0x504030,
+        detail:[
+          { x:396, y:86,  w:44, h:46, col:0x181010 }, // opening
+          { x:400, y:100, w:36, h:28, col:0xe85020 }, // flame
+          { x:404, y:108, w:28, h:16, col:0xf8c020 }, // bright flame
+        ], label:'FIRE'
+      },
     ],
-    npcs: [
-      { name:'Elder',   color:'#f8a030', x:220, y:200, lines:["This town has seen many seasons.", "Sit down, child.", "I remember when this was all fields."] },
+    npcs:[
+      { name:'Elder', color:'#f8a030', x:230, y:215,
+        lines:["This town has seen many seasons.","Sit down, child.","I remember when this was all fields.","Share a meal with me."] },
     ],
   },
+
   shop_se: {
-    bg: '#0a1a0a',
-    wallColor: '#e0f0e0',
+    bg: '#060e06', title: 'ITEM SHOP',
+    wallCol: 0xd8f0d8, floorVariant: 'shop',
     furniture: [
-      { type:'counter', x:100, y:90,  w:260, h:35, col:0xc07030, label:'COUNTER' },
-      { type:'shelf',   x:30,  y:110, w:40,  h:120,col:0xa05820, label:'GOODS'  },
-      { type:'shelf',   x:410, y:110, w:40,  h:120,col:0xa05820, label:'STOCK'  },
-      { type:'barrel',  x:55,  y:250, w:40,  h:45, col:0x804010, label:'BARREL' },
-      { type:'barrel',  x:110, y:250, w:40,  h:45, col:0x804010, label:'BARREL' },
-      { type:'crate',   x:370, y:250, w:45,  h:40, col:0x906020, label:'CRATE'  },
-      { type:'crate',   x:420, y:250, w:45,  h:40, col:0x906020, label:'CRATE'  },
+      // Main counter
+      { type:'counter', x:80,  y:80,  w:320, h:40, col:0xa06820,
+        detail:[
+          { x:80,  y:80,  w:320, h:7,  col:0xc08030 }, // counter top
+          { x:80,  y:87,  w:320, h:4,  col:0x805018 }, // counter lip
+          // Items on display
+          { x:100, y:58,  w:20, h:20, col:0x2848c0 }, // potion
+          { x:130, y:60,  w:16, h:18, col:0xe82020 }, // red item
+          { x:160, y:56,  w:20, h:22, col:0xf8d030 }, // gold item
+          { x:200, y:58,  w:18, h:20, col:0x289048 }, // herb
+          { x:240, y:56,  w:22, h:22, col:0x9030c0 }, // purple item
+          { x:280, y:60,  w:16, h:18, col:0x3898f8 }, // blue item
+          { x:320, y:58,  w:20, h:20, col:0xe06820 }, // orange item
+        ], label:'COUNTER'
+      },
+      // Left stockroom shelves
+      { type:'shelf',   x:16,  y:90,  w:40, h:160, col:0x8a5020,
+        detail:[
+          { x:18, y:98,  w:36, h:12, col:0x804010 }, // shelf board
+          { x:20, y:100, w:14, h:8,  col:0xe82020 },
+          { x:36, y:100, w:14, h:8,  col:0x3060e0 },
+          { x:18, y:118, w:36, h:12, col:0x804010 },
+          { x:20, y:120, w:10, h:8,  col:0xf8d030 },
+          { x:32, y:120, w:18, h:8,  col:0x289048 },
+          { x:18, y:138, w:36, h:12, col:0x804010 },
+          { x:20, y:140, w:32, h:8,  col:0x9030c0 },
+          { x:18, y:158, w:36, h:12, col:0x804010 },
+          { x:20, y:160, w:16, h:8,  col:0xe06020 },
+          { x:38, y:160, w:14, h:8,  col:0x3898f8 },
+        ], label:'STOCK'
+      },
+      // Right stockroom
+      { type:'shelf',   x:424, y:90,  w:40, h:160, col:0x8a5020,
+        detail:[
+          { x:426, y:98,  w:36, h:12, col:0x804010 },
+          { x:428, y:100, w:14, h:8,  col:0x289048 },
+          { x:444, y:100, w:14, h:8,  col:0xe82020 },
+          { x:426, y:118, w:36, h:12, col:0x804010 },
+          { x:428, y:120, w:32, h:8,  col:0xf8d030 },
+          { x:426, y:138, w:36, h:12, col:0x804010 },
+          { x:428, y:140, w:14, h:8,  col:0x3060e0 },
+          { x:444, y:140, w:14, h:8,  col:0x9030c0 },
+        ], label:'GOODS'
+      },
+      // Barrels
+      { type:'barrel',  x:50,  y:260, w:44, h:50, col:0x703010,
+        detail:[
+          { x:52,  y:262, w:40, h:4, col:0x905020 },
+          { x:52,  y:276, w:40, h:4, col:0x905020 },
+          { x:52,  y:290, w:40, h:4, col:0x905020 },
+        ], label:''
+      },
+      { type:'barrel',  x:104, y:260, w:44, h:50, col:0x703010,
+        detail:[
+          { x:106, y:262, w:40, h:4, col:0x905020 },
+          { x:106, y:276, w:40, h:4, col:0x905020 },
+          { x:106, y:290, w:40, h:4, col:0x905020 },
+        ], label:''
+      },
+      // Crates
+      { type:'crate',   x:370, y:264, w:48, h:44, col:0x806020,
+        detail:[
+          { x:372, y:266, w:44, h:2, col:0xa08030 },
+          { x:394, y:266, w:2,  h:40, col:0xa08030 },
+          { x:372, y:292, w:44, h:2, col:0xa08030 },
+        ], label:''
+      },
+      { type:'crate',   x:424, y:264, w:48, h:44, col:0x806020,
+        detail:[
+          { x:426, y:266, w:44, h:2, col:0xa08030 },
+          { x:448, y:266, w:2,  h:40, col:0xa08030 },
+          { x:426, y:292, w:44, h:2, col:0xa08030 },
+        ], label:''
+      },
+      // OPEN sign
+      { type:'deco',    x:200, y:44,  w:80, h:24, col:0x289048,
+        detail:[{ x:204, y:48, w:72, h:16, col:0x50d060 }], label:'OPEN'
+      },
     ],
-    npcs: [
-      { name:'Shopkeeper', color:'#78c850', x:230, y:130, lines:["Welcome to the shop!", "Best prices in town!", "Looking for something?","We have everything you need."] },
+    npcs:[
+      { name:'Shopkeeper', color:'#78c850', x:240, y:130,
+        lines:["Welcome! Browse freely.","Best prices in town!","Looking for something special?","We restock daily!","Can I help you find anything?"] },
     ],
-    shopItems: [
-      { name:'Health Potion', price: 10, icon:'🧪' },
-      { name:'Map Fragment',  price: 25, icon:'🗺️' },
-      { name:'Lucky Charm',   price: 15, icon:'🍀' },
-      { name:'Torch',         price:  5, icon:'🕯️' },
+    shopItems:[
+      { name:'Health Potion', price:10, icon:'🧪' },
+      { name:'Map Fragment',  price:25, icon:'🗺️' },
+      { name:'Lucky Charm',   price:15, icon:'🍀' },
+      { name:'Torch',         price:5,  icon:'🕯️' },
     ],
   },
 };
@@ -4441,30 +4773,50 @@ class HouseScene extends Phaser.Scene {
 
     this.cameras.main.setBackgroundColor(def.bg);
 
-    // ── Floor canvas ──
+    // ── Floor canvas — variant colouring per room type ──
     if (this.textures.exists('hfloor_tmp')) this.textures.remove('hfloor_tmp');
     const tex = this.textures.createCanvas('hfloor_tmp', W, H);
     const ctx = tex.getContext();
+    const floorV = def.floorVariant || 'warm';
     for (let ty = 0; ty < H/T; ty++) {
       for (let tx = 0; tx < W/T; tx++) {
-        if (ty < 2 || ty >= H/T-1 || tx === 0 || tx === W/T-1)
+        const isBorder = ty < 2 || ty >= H/T-1 || tx === 0 || tx === W/T-1;
+        if (isBorder) {
           drawWallTile(ctx, tx*T, ty*T);
-        else
+          // Variant wall tint overlay
+          const wallTint = { warm:'#f8e8c888', cool:'#d8e0f888', shop:'#d8f0d888' }[floorV] || '#f8e8c888';
+          ctx.fillStyle = wallTint;
+          ctx.fillRect(tx*T, ty*T, T, T);
+        } else {
           drawInteriorTile(ctx, tx*T, ty*T);
+          // Floor colour variation per room
+          if (floorV === 'cool') {
+            ctx.fillStyle = '#88a0c811';
+            ctx.fillRect(tx*T, ty*T, T, T);
+          } else if (floorV === 'shop') {
+            // Checkerboard accent
+            if ((tx+ty)%2===0) { ctx.fillStyle = '#00200808'; ctx.fillRect(tx*T, ty*T, T, T); }
+          }
+        }
       }
     }
     tex.refresh();
     this.add.image(0, 0, 'hfloor_tmp').setOrigin(0).setDepth(0);
 
-    // ── Furniture ──
+    // ── Furniture — base + detail layers ──
     def.furniture.forEach(f => {
-      this.add.rectangle(f.x + f.w/2, f.y + f.h/2, f.w, f.h, f.col)
-        .setDepth(f.y + f.h);
+      // Base piece
+      this.add.rectangle(f.x + f.w/2, f.y + f.h/2, f.w, f.h, f.col).setDepth(f.y + f.h);
+      // Detail sub-pieces (highlights, legs, items on top)
+      (f.detail || []).forEach(d => {
+        this.add.rectangle(d.x + d.w/2, d.y + d.h/2, d.w, d.h, d.col).setDepth(f.y + f.h + 1);
+      });
+      // Label
       if (f.label) {
         this.add.text(f.x + f.w/2, f.y + f.h/2, f.label, {
           fontSize:'5px', fontFamily:"'Press Start 2P'", color:'#f8f8f8',
           stroke:'#181018', strokeThickness:2,
-        }).setOrigin(0.5).setDepth(f.y + f.h + 1);
+        }).setOrigin(0.5).setDepth(f.y + f.h + 2);
       }
     });
 
@@ -4488,16 +4840,23 @@ class HouseScene extends Phaser.Scene {
         fontSize:'5px', fontFamily:"'Press Start 2P'",
         color: nd.color, stroke:'#181018', strokeThickness:2,
       }).setOrigin(0.5, 1).setDepth(nd.y + 1);
-      this._intNpcs.push({ spr, tag, lines: nd.lines, _walkTimer:0, _dir:1, _baseX: nd.x });
+      this._intNpcs.push({ spr, tag, lines: nd.lines, npcName: nd.name, _walkTimer:0, _dir:1, _baseX: nd.x });
     });
 
-    // ── Room label ──
-    const label = this._data.houseLabel || 'BUILDING';
+    // ── Room label + debug ──
+    const label = def.title || this._data.houseLabel || 'BUILDING';
     this.add.text(W/2, 36, label, {
       fontSize:'7px', fontFamily:"'Press Start 2P'",
       color:'#f8d030', stroke:'#181018', strokeThickness:3,
       backgroundColor:'#00000088', padding:{x:5,y:3},
     }).setOrigin(0.5).setScrollFactor(0).setDepth(9000);
+
+    // Debug HUD
+    this.add.text(8, 8, '⬛ Interior Loaded', {
+      fontSize:'5px', fontFamily:"'Press Start 2P'",
+      color:'#78c850', stroke:'#181018', strokeThickness:2,
+      backgroundColor:'#00000088', padding:{x:3,y:2},
+    }).setScrollFactor(0).setDepth(9999);
 
     // ── Exit door ──
     this.add.rectangle(W/2, H - 20, 80, 32, 0xe82020).setDepth(9000);
@@ -4539,11 +4898,11 @@ class HouseScene extends Phaser.Scene {
     // Periodic NPC speech
     this.time.addEvent({ delay:4000, loop:true, callback:() => {
       if (this._intNpcs.length === 0) return;
-      const n = this._intNpcs[0];
+      const n    = this._intNpcs[0];
       const line = n.lines[Math.floor(Math.random() * n.lines.length)];
-      this._bubble.setText(`${this._data.houseId==='shop_se'?'Shopkeeper':'NPC'}: ${line}`);
+      this._bubble.setText(`${n.npcName}: ${line}`);
       this._bubble.setPosition(n.spr.x, n.spr.y - 24).setVisible(true);
-      this._bubbleTimer = 3000;
+      this._bubbleTimer = 3500;
     }});
 
     console.log(`[HouseScene] ${id} — ${label}`);
