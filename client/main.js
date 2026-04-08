@@ -1588,6 +1588,7 @@ function drawInteriorTile(ctx, px, py) {
 }
 
 function createTextures(scene) {
+  if (scene.textures.exists('worldmap')) scene.textures.remove('worldmap');
   const worldGfx = scene.textures.createCanvas('worldmap', WORLD_W, WORLD_H);
   const ctx = worldGfx.getContext();
 
@@ -1760,6 +1761,7 @@ function createTextures(scene) {
     player_left_b:  SPR_PLAYER_LEFT_B,
   };
   for (const [key, grid] of Object.entries(playerFrames)) {
+    if (scene.textures.exists(key)) scene.textures.remove(key);
     const t = scene.textures.createCanvas(key, 16, 16);
     const c = t.getContext();
     c.imageSmoothingEnabled = false;
@@ -1769,6 +1771,7 @@ function createTextures(scene) {
   console.log('[createTextures] ✓ Player textures:', Object.keys(playerFrames).join(', '));
 
   // ── NPC BASE SPRITE (fallback, gray) ──
+  if (scene.textures.exists('npc_base')) scene.textures.remove('npc_base');
   const npcTex = scene.textures.createCanvas('npc_base', 16, 16);
   const nCtx = npcTex.getContext();
   nCtx.imageSmoothingEnabled = false;
@@ -1835,6 +1838,7 @@ function spawnCityWorldObjects(scene) {
 
   // Create a texture for trees (using SPR_TREE, drawn at 2× via canvas)
   if (!scene.textures.exists('tree_obj')) {
+    if (scene.textures.exists('tree_obj')) scene.textures.remove('tree_obj');
     const treeCanvas = scene.textures.createCanvas('tree_obj', 16, 16);
     const tCtx = treeCanvas.getContext();
     tCtx.imageSmoothingEnabled = false;
@@ -4222,7 +4226,8 @@ class HouseScene extends Phaser.Scene {
     const W = 480;
     const H = 400;
 
-    // ── Floor ──
+    // ── Floor — remove stale texture first so re-entry doesn't crash ──
+    if (this.textures.exists('hfloor_tmp')) this.textures.remove('hfloor_tmp');
     const tex = this.textures.createCanvas('hfloor_tmp', W, H);
     const ctx = tex.getContext();
     for (let ty = 0; ty < H / T; ty++) {
@@ -4342,7 +4347,11 @@ class HouseScene extends Phaser.Scene {
       const d = this._data || {};
       gameState.myX = d.returnX || 400;
       gameState.myY = d.returnY || 400;
-      console.log(`[HouseScene] exiting → GameScene (${gameState.myX}, ${gameState.myY})`);
+      if (gameState.mySprite) {
+        gameState.mySprite.setPosition(gameState.myX, gameState.myY);
+      }
+      console.log(`[HouseScene] exiting → GameScene`);
+      this.scene.stop('HouseScene');
       this.scene.start('GameScene');
     }
   }
