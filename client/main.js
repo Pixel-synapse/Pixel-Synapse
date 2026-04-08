@@ -103,6 +103,10 @@ const gameState = {
   wasd: null,
   currentTownId: 'pixel_synapse',
   mobileInput: { x: 0, y: 0 },
+  // Depth + collision
+  treeGroup:       null,  // staticGroup — trees
+  buildingGroup:   null,  // staticGroup — buildings
+  _depthDebugText: null,  // HUD text updated every frame with player Y/depth
 };
 
 // ─────────────────────────────────────────────
@@ -1199,17 +1203,28 @@ function applyTravelResult(msg) {
     drawTownMap(mapType, gameState.scene, gameState.worldSprite);
   }
 
-  // ── 2. Destroy all town-specific world objects (labels, markers) ──
+  // ── 2. Destroy all town-specific world objects (labels, markers, trees, buildings) ──
   if (gameState.worldObjects) {
     for (const obj of gameState.worldObjects) {
       if (obj && obj.destroy) obj.destroy();
     }
   }
   gameState.worldObjects = [];
+  // Reset physics groups so they rebuild fresh for the new town
+  gameState.treeGroup     = null;
+  gameState.buildingGroup = null;
+  gameState._depthDebugText = null;
 
   // ── 3. Spawn world labels appropriate to this town ──
   if (gameState.scene) {
     spawnTownWorldObjects(gameState.scene, town);
+    // Re-register colliders for the new town's trees/buildings
+    if (gameState.treeGroup && gameState.mySprite) {
+      gameState.scene.physics.add.collider(gameState.mySprite, gameState.treeGroup);
+    }
+    if (gameState.buildingGroup && gameState.mySprite) {
+      gameState.scene.physics.add.collider(gameState.mySprite, gameState.buildingGroup);
+    }
   }
 
   // ── 4. Teleport player to this town's spawn ──
@@ -1572,344 +1587,164 @@ function createTextures(scene) {
   const worldGfx = scene.textures.createCanvas('worldmap', WORLD_W, WORLD_H);
   const ctx = worldGfx.getContext();
 
-  // ── BASE GROUND: grass tiles ──
-  for (let ty=0; ty<WORLD_H/TILE_SIZE; ty++) {
-    for (let tx=0; tx<WORLD_W/TILE_SIZE; tx++) {
-      drawGrassTile(ctx, tx*TILE_SIZE, ty*TILE_SIZE);
+  // ════════════════════════════════════════════
+  // GBA POKÉMON STARTER TOWN — "Pixel Town"
+  // Map: 800×800px, TILE_SIZE=16, so 50×50 tiles
+  // Layout:
+  //   • Bright grass base everywhere
+  //   • Tree border (2 tiles deep) all edges
+  //   • Horizontal path: rows 24–25 (centre)
+  //   • Vertical path:   cols 24–25 (centre)
+  //   • Town square:     cobble at intersection (tiles 21–28)
+  //   • Houses at NW, NE, SW quadrants
+  //   • Shop at SE quadrant
+  //   • Decorative trees scattered inside
+  // ════════════════════════════════════════════
+
+  // ── 1. GRASS BASE ──
+  for (let ty = 0; ty < WORLD_H / TILE_SIZE; ty++) {
+    for (let tx = 0; tx < WORLD_W / TILE_SIZE; tx++) {
+      drawGrassTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
     }
   }
 
-  // ── MAIN ROADS (cross) ──
-  // Vertical road
-  for (let ty=0; ty<WORLD_H/TILE_SIZE; ty++) {
-    drawRoadTile(ctx, 24*TILE_SIZE, ty*TILE_SIZE);
-    drawRoadTile(ctx, 25*TILE_SIZE, ty*TILE_SIZE);
+  // ── 2. PATHS (bright GBA sand) ──
+  // Horizontal path — rows 23–26
+  for (let tx = 0; tx < WORLD_W / TILE_SIZE; tx++) {
+    for (let ty = 23; ty <= 26; ty++) drawRoadTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
   }
-  // Horizontal road
-  for (let tx=0; tx<WORLD_W/TILE_SIZE; tx++) {
-    drawRoadTile(ctx, tx*TILE_SIZE, 24*TILE_SIZE);
-    drawRoadTile(ctx, tx*TILE_SIZE, 25*TILE_SIZE);
+  // Vertical path — cols 23–26
+  for (let ty = 0; ty < WORLD_H / TILE_SIZE; ty++) {
+    for (let tx = 23; tx <= 26; tx++) drawRoadTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
   }
 
-  // ── TOWN SQUARE (cobble) ──
-  for (let ty=17; ty<32; ty++) {
-    for (let tx=17; tx<32; tx++) {
-      drawCobbleTile(ctx, tx*TILE_SIZE, ty*TILE_SIZE);
+  // ── 3. TOWN SQUARE — cobble at intersection ──
+  for (let ty = 21; ty <= 28; ty++) {
+    for (let tx = 21; tx <= 28; tx++) {
+      drawCobbleTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
     }
   }
-  // Square border
-  ctx.strokeStyle = PAL.stoneEdge;
+  // Square border line
+  ctx.strokeStyle = '#b09040';
   ctx.lineWidth = 2;
-  ctx.strokeRect(17*TILE_SIZE+1, 17*TILE_SIZE+1, 15*TILE_SIZE-2, 15*TILE_SIZE-2);
+  ctx.strokeRect(21 * TILE_SIZE + 1, 21 * TILE_SIZE + 1, 8 * TILE_SIZE - 2, 8 * TILE_SIZE - 2);
 
-  // ── FOUNTAIN (water tiles in center) ──
-  for (let ty=22; ty<26; ty++) {
-    for (let tx=22; tx<26; tx++) {
-      drawWaterTile(ctx, tx*TILE_SIZE, ty*TILE_SIZE);
+  // Fountain in centre of square
+  for (let ty = 23; ty <= 25; ty++) {
+    for (let tx = 23; tx <= 25; tx++) {
+      drawWaterTile(ctx, tx * TILE_SIZE, ty * TILE_SIZE);
     }
   }
-  // Fountain rim
-  ctx.strokeStyle = PAL.cobble;
+  // Fountain rim (bright outline)
+  ctx.strokeStyle = '#f0d890';
   ctx.lineWidth = 2;
-  ctx.strokeRect(22*TILE_SIZE, 22*TILE_SIZE, 4*TILE_SIZE, 4*TILE_SIZE);
-  // Sparkles
-  ctx.fillStyle = PAL.water;
-  for (let i=0;i<10;i++) {
-    ctx.fillRect(
-      22*TILE_SIZE+16 + Math.cos(i*0.63)*14,
-      22*TILE_SIZE+16 + Math.sin(i*0.63)*14,
-      2,2
-    );
-  }
+  ctx.strokeRect(23 * TILE_SIZE, 23 * TILE_SIZE, 3 * TILE_SIZE, 3 * TILE_SIZE);
 
-  // ── PARK (NW corner, grass + trees) ──
-  // Extra dark grass underneath
-  for (let ty=1; ty<12; ty++) {
-    for (let tx=1; tx<12; tx++) {
-      ctx.fillStyle = PAL.grassDark;
-      ctx.fillRect(tx*TILE_SIZE, ty*TILE_SIZE, TILE_SIZE, TILE_SIZE);
-      drawGrassTile(ctx, tx*TILE_SIZE, ty*TILE_SIZE);
-    }
-  }
-  // Trees (trunk + canopy)
-  const trees = [[3,3],[7,2],[5,7],[9,5],[2,9],[10,8],[6,4]];
-  trees.forEach(([tx,ty]) => {
-    const px=tx*TILE_SIZE, py=ty*TILE_SIZE;
-    // Trunk
-    ctx.fillStyle = PAL.trunk;
-    ctx.fillRect(px+6,py+10,4,6);
-    ctx.fillStyle = darkenHex(PAL.trunk,20);
-    ctx.fillRect(px+6,py+10,1,6);
-    // Canopy layers
-    ctx.fillStyle = PAL.treeDark;
-    ctx.fillRect(px+1,py+1,14,12);
-    ctx.fillStyle = PAL.grassMid;
-    ctx.fillRect(px+3,py+2,10,9);
-    ctx.fillStyle = PAL.grassBright;
-    ctx.fillRect(px+5,py+3,6,5);
-    // Highlight
-    ctx.fillStyle = '#3d7a1a';
-    ctx.fillRect(px+5,py+3,2,2);
-    // Outline
-    ctx.strokeStyle = PAL.grassDark;
-    ctx.lineWidth=1;
-    ctx.strokeRect(px+1,py+1,14,12);
-  });
-
-  // ── BUILDINGS ──
-  // Each building is tagged with its purpose so world labels can reference them.
-  // Coordinates are in tile units; pixel = tile * TILE_SIZE.
+  // ── 4. BUILDINGS (drawn into canvas — NO Phaser objects yet) ──
+  // These are just the ground-floor visual. Phaser objects with depth/collision
+  // are added in spawnCityWorldObjects() and the GameScene.
   //
-  //   NE building  (tiles 35–41, 3–8)   → Orion's Workshop
-  //   SW building  (tiles 3–8,  35–39)  → Mira's Café
-  //   SE building  (tiles 37–44, 37–43) → Market / Trade Hall
-  //   N  building  (tiles 19–23, 3–7)   → Town Hall (Mayor Sol)
-  //
-  const buildings = [
-    { x:35, y:3,  w:7, h:6, wall: PAL.wallMid,   roof: PAL.wallDark,  win:'#22334455', label:'WORKSHOP' },
-    { x:3,  y:35, w:6, h:5, wall: PAL.wallBlue,  roof: '#100f1a',     win:'#33224455', label:'CAFÉ'     },
-    { x:37, y:37, w:8, h:7, wall: PAL.wallGreen, roof: '#0f1a0f',     win:'#22443355', label:'MARKET'   },
-    { x:19, y:3,  w:5, h:5, wall: '#242414',     roof: '#2a2000',     win:'#33332255', label:'TOWN HALL'},
-  ];
-  buildings.forEach((b, bi) => {
-    const px=b.x*TILE_SIZE, py=b.y*TILE_SIZE, bw=b.w*TILE_SIZE, bh=b.h*TILE_SIZE;
-    // Wall — interior floor tiles
-    for (let ty=0;ty<b.h;ty++) for (let tx=0;tx<b.w;tx++)
-      drawWallTile(ctx, px+tx*TILE_SIZE, py+ty*TILE_SIZE);
-    // Roof strip
-    ctx.fillStyle = b.roof;
-    ctx.fillRect(px, py, bw, TILE_SIZE+8);
-    ctx.fillStyle = lightenHex(b.roof,15);
-    ctx.fillRect(px, py, bw, 4);
-    // Accent stripe on Town Hall (gold-ish)
-    if (bi === 3) {
-      ctx.fillStyle = '#443300';
-      ctx.fillRect(px, py+TILE_SIZE+2, bw, 3);
-    }
-    // Windows
-    for (let wi=0;wi<Math.min(3,b.w-1);wi++) {
-      ctx.fillStyle = b.win;
-      ctx.fillRect(px+8+wi*20, py+22, 12,9);
-      ctx.fillStyle = '#aaccff0a';
-      ctx.fillRect(px+8+wi*20, py+22, 6,4);
-    }
-    // Door
-    ctx.fillStyle = '#1a1008';
-    ctx.fillRect(px+bw/2-5, py+bh-18, 10,18);
-    ctx.fillStyle = '#a85c2855';
-    ctx.fillRect(px+bw/2-5, py+bh-18, 5,18);
-    // Building outline
-    ctx.strokeStyle = lightenHex(b.wall,10);
-    ctx.lineWidth=1;
-    ctx.strokeRect(px,py,bw,bh);
-  });
+  // Pokémon-style: cream walls, bright red/blue roofs, windows, door
 
-  // ── TOWN HALL SIGN BOARD ──
-  // A small coloured board above the Town Hall door so it's unmistakable.
-  {
-    const tx = 19*TILE_SIZE, ty = 3*TILE_SIZE;
-    const bw = 5*TILE_SIZE;
-    ctx.fillStyle = '#2a2000';
-    ctx.fillRect(tx + bw/2 - 20, ty - 8, 40, 8);
-    ctx.strokeStyle = '#886600';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(tx + bw/2 - 20, ty - 8, 40, 8);
-    ctx.fillStyle = '#ffcc44';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('TOWN HALL', tx + bw/2, ty - 2);
-  }
+  function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label) {
+    const px = tx * TILE_SIZE, py = ty * TILE_SIZE;
+    const bw = tw * TILE_SIZE, bh = th * TILE_SIZE;
 
-  // ── CAFÉ SIGN ──
-  {
-    const tx = 3*TILE_SIZE, ty = 35*TILE_SIZE;
-    const bw = 6*TILE_SIZE;
-    ctx.fillStyle = '#0d1020';
-    ctx.fillRect(tx + bw/2 - 22, ty - 8, 44, 8);
-    ctx.strokeStyle = '#3344aa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(tx + bw/2 - 22, ty - 8, 44, 8);
-    ctx.fillStyle = '#E8A598';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText("MIRA'S CAFÉ", tx + bw/2, ty - 2);
-  }
+    // Wall base
+    ctx.fillStyle = wallColor;
+    ctx.fillRect(px, py, bw, bh);
 
-  // ── MARKET SIGN ──
-  {
-    const tx = 37*TILE_SIZE, ty = 37*TILE_SIZE;
-    const bw = 8*TILE_SIZE;
-    ctx.fillStyle = '#0d1a0d';
-    ctx.fillRect(tx + bw/2 - 22, ty - 8, 44, 8);
-    ctx.strokeStyle = '#224422';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(tx + bw/2 - 22, ty - 8, 44, 8);
-    ctx.fillStyle = '#81C784';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('MARKET', tx + bw/2, ty - 2);
-  }
+    // Wall shadow (left + bottom edges)
+    ctx.fillStyle = darkenHex(wallColor, 15);
+    ctx.fillRect(px, py, 2, bh);
+    ctx.fillRect(px, py + bh - 2, bw, 2);
 
-  // ── PATH TILES in side alleys ──
-  for (let i=0;i<WORLD_W/TILE_SIZE;i++) {
-    drawPathTile(ctx, i*TILE_SIZE, 13*TILE_SIZE);
-    drawPathTile(ctx, 13*TILE_SIZE, i*TILE_SIZE);
-  }
+    // Wall highlight (top edge)
+    ctx.fillStyle = lightenHex(wallColor, 20);
+    ctx.fillRect(px, py, bw, 2);
 
-  // ── BORDER WALLS ──
-  for (let tx=0;tx<WORLD_W/TILE_SIZE;tx++) {
-    drawWallTile(ctx, tx*TILE_SIZE, 0);
-    drawWallTile(ctx, tx*TILE_SIZE, (WORLD_H/TILE_SIZE-1)*TILE_SIZE);
-  }
-  for (let ty=1;ty<WORLD_H/TILE_SIZE-1;ty++) {
-    drawWallTile(ctx, 0, ty*TILE_SIZE);
-    drawWallTile(ctx, (WORLD_W/TILE_SIZE-1)*TILE_SIZE, ty*TILE_SIZE);
-  }
+    // Roof strip (top 1.5 tiles)
+    const roofH = Math.floor(TILE_SIZE * 1.5);
+    ctx.fillStyle = roofColor;
+    ctx.fillRect(px, py, bw, roofH);
+    ctx.fillStyle = lightenHex(roofColor, 25);
+    ctx.fillRect(px, py, bw, 3);                 // roof highlight top
+    ctx.fillStyle = darkenHex(roofColor, 20);
+    ctx.fillRect(px, py + roofH - 2, bw, 2);     // roof shadow bottom
 
-  // ── SIGN ──
-  ctx.fillStyle = PAL.panel;
-  ctx.fillRect(336,240,128,24);
-  ctx.strokeStyle = PAL.border;
-  ctx.lineWidth=1;
-  ctx.strokeRect(336,240,128,24);
-  ctx.fillStyle = PAL.nameLt;
-  ctx.font = '7px "Press Start 2P"';
-  ctx.textAlign='center';
-  ctx.fillText('PIXEL SYNAPSE', 400, 255);
-
-  // ── OBJECTS: tables, chairs, trees scattered around the world ──
-  // Tables inside buildings (near building positions)
-  const tableSpots = [
-    [36,5],[38,5],[40,5],[37,7],[39,7],  // NE building area
-    [4,36],[5,36],[4,38],                 // SW building area
-    [38,39],[40,39],[38,41],[40,41],      // SE building area
-    [20,4],[21,4],[22,5],                 // N building area
-  ];
-  tableSpots.forEach(([tx,ty]) => {
-    drawSprite(ctx, SPR_TABLE, tx*TILE_SIZE, ty*TILE_SIZE, 1);
-  });
-
-  // Chairs near tables
-  const chairSpots = [
-    [36,6],[39,6],[37,8],
-    [4,37],[5,37],
-    [39,40],[41,40],
-    [20,5],[22,4],
-  ];
-  chairSpots.forEach(([tx,ty]) => {
-    drawSprite(ctx, SPR_CHAIR, tx*TILE_SIZE, ty*TILE_SIZE, 1);
-  });
-
-  // Extra standalone trees scattered outside park
-  const extraTrees = [[15,15],[30,5],[5,30],[40,15],[15,40],[28,10],[10,28]];
-  extraTrees.forEach(([tx,ty]) => {
-    drawSprite(ctx, SPR_TREE, tx*TILE_SIZE, ty*TILE_SIZE, 1);
-  });
-
-  // ── TRAIN STATION — east edge of map (tiles 44–49, 22–28) ──
-  // The station is the travel hub. Platform + building + tracks + portal glow.
-  {
-    const S = TILE_SIZE;
-
-    // ── Platform base (stone) ──
-    for (let ty = 23; ty <= 27; ty++) {
-      for (let tx = 44; tx <= 49; tx++) {
-        const px = tx*S, py = ty*S;
-        ctx.fillStyle = '#2a2820';
-        ctx.fillRect(px, py, S, S);
-        ctx.fillStyle = '#3a3530';
-        ctx.fillRect(px+1, py+1, S-2, S-2);
-      }
+    // Windows (2px frame, bright tint)
+    const winCols = Math.max(1, tw - 1);
+    for (let wi = 0; wi < winCols; wi++) {
+      const wx = px + 8 + wi * 20;
+      const wy = py + roofH + 6;
+      ctx.fillStyle = '#b8e0ff';
+      ctx.fillRect(wx, wy, 10, 8);
+      ctx.fillStyle = '#dff0ff';
+      ctx.fillRect(wx, wy, 5, 4);               // highlight
+      ctx.fillStyle = '#181018';
+      ctx.strokeRect(wx, wy, 10, 8);            // window frame
     }
 
-    // ── Station building (tiles 44–48, 23–25) ──
-    ctx.fillStyle = '#241824';           // dark purple-grey wall
-    ctx.fillRect(44*S, 23*S, 5*S, 3*S);
-    ctx.fillStyle = '#1a0f2a';           // darker roof strip
-    ctx.fillRect(44*S, 23*S, 5*S, S);
-    ctx.fillStyle = '#2e1a4a';           // roof highlight
-    ctx.fillRect(44*S, 23*S, 5*S, 4);
-
-    // Roof trim stripe
-    ctx.fillStyle = '#6644aa';
-    ctx.fillRect(44*S, 23*S+3, 5*S, 3);
-
-    // Windows — two purple-lit windows
-    ctx.fillStyle = '#44224488';
-    ctx.fillRect(44*S+6,  23*S+10, 10, 8);
-    ctx.fillRect(44*S+22, 23*S+10, 10, 8);
-    ctx.fillStyle = '#bb88ff33';
-    ctx.fillRect(44*S+6,  23*S+10, 5, 4);
-    ctx.fillRect(44*S+22, 23*S+10, 5, 4);
-
-    // Door
-    ctx.fillStyle = '#1a0a2a';
-    ctx.fillRect(44*S+36, 25*S+2, 8, S-2);
-    ctx.fillStyle = '#6644aa44';
-    ctx.fillRect(44*S+36, 25*S+2, 4, S-2);
+    // Door (centred)
+    const dx = px + Math.floor(bw / 2) - 5;
+    const dy = py + bh - 20;
+    ctx.fillStyle = '#c07030';                  // door wood
+    ctx.fillRect(dx, dy, 10, 20);
+    ctx.fillStyle = '#804010';
+    ctx.fillRect(dx, dy, 2, 20);               // door shadow
+    ctx.fillStyle = '#e0d0b0';
+    ctx.fillRect(dx + 7, dy + 8, 2, 2);        // door knob
 
     // Building outline
-    ctx.strokeStyle = '#6644aa';
+    ctx.strokeStyle = '#181018';
     ctx.lineWidth = 1;
-    ctx.strokeRect(44*S, 23*S, 5*S, 3*S);
+    ctx.strokeRect(px, py, bw, bh);
 
-    // ── Train tracks — two lines running east-west across bottom of station ──
-    for (let tx = 42; tx <= 50; tx++) {
-      const px = tx * S;
-      // Rail ties (wood sleepers)
-      ctx.fillStyle = '#3a2810';
-      ctx.fillRect(px, 27*S+4, S, 4);
-      ctx.fillRect(px, 27*S+10, S, 4);
-      // Rails
-      ctx.fillStyle = '#7a7068';
-      ctx.fillRect(px, 27*S+5, S, 2);
-      ctx.fillRect(px, 27*S+11, S, 2);
+    // Sign above building
+    if (label) {
+      const sw = label.length * 5 + 10;
+      ctx.fillStyle = darkenHex(roofColor, 10);
+      ctx.fillRect(px + bw / 2 - sw / 2, py - 9, sw, 9);
+      ctx.strokeStyle = lightenHex(roofColor, 20);
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px + bw / 2 - sw / 2, py - 9, sw, 9);
+      ctx.fillStyle = '#f8f8f8';
+      ctx.font = '5px "Press Start 2P", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, px + bw / 2, py - 2);
     }
-
-    // ── PORTAL / ARRIVAL GATE — glowing archway at tile 46, y=26 ──
-    // This is the actual travel interaction point (center ~736, 424)
-    const gx = 46*S + S/2;  // 736+8 = 744
-    const gy = 26*S;        // 416
-
-    // Portal arch base — two pillars
-    ctx.fillStyle = '#2a1a3a';
-    ctx.fillRect(gx-12, gy, 6, 24);
-    ctx.fillRect(gx+6,  gy, 6, 24);
-    ctx.fillStyle = '#6644aa';
-    ctx.fillRect(gx-12, gy, 6, 4);
-    ctx.fillRect(gx+6,  gy, 6, 4);
-
-    // Portal arch top bar
-    ctx.fillStyle = '#3a2050';
-    ctx.fillRect(gx-12, gy-4, 24, 5);
-    ctx.fillStyle = '#aa66ff';
-    ctx.fillRect(gx-12, gy-4, 24, 2);
-
-    // Portal inner glow (two layers — will shimmer via Phaser graphics on top)
-    ctx.fillStyle = '#3a1a5a88';
-    ctx.fillRect(gx-6, gy, 12, 20);
-    ctx.fillStyle = '#7a44aa44';
-    ctx.fillRect(gx-4, gy+2, 8, 16);
-
-    // Station sign above building
-    ctx.fillStyle = '#1a0f2a';
-    ctx.fillRect(44*S + 4, 22*S + 2, 5*S - 8, 10);
-    ctx.strokeStyle = '#6644aa';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(44*S + 4, 22*S + 2, 5*S - 8, 10);
-    ctx.fillStyle = '#bb88ff';
-    ctx.font = '5px "Press Start 2P"';
-    ctx.textAlign = 'center';
-    ctx.fillText('TRANSIT HUB', 44*S + 5*S/2, 22*S + 10);
-
-    // Platform edge line
-    ctx.fillStyle = '#ffcc4455';
-    ctx.fillRect(44*S, 26*S + S - 2, 6*S, 2);
   }
+
+  // House 1 — NW (red roof, cream wall)
+  drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', "HOUSE");
+  // House 2 — NE (blue roof, cream wall)
+  drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#f0e8c0', "HOUSE");
+  // House 3 — SW (red roof, cream wall, slightly wider)
+  drawBuilding(ctx, 5,  36, 7, 5, '#e82020', '#f0e8c0', "HOME");
+  // Shop    — SE (green roof, cream wall)
+  drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#f0e8c0', "SHOP");
+
+  // ── 5. DECORATIVE TREES (drawn into canvas only — shadow layer) ──
+  // These are background-only trees (no depth / collision).
+  // Real depth-sorted trees are Phaser objects added in the scene.
+  // We draw their shadows / ground base here so the ground looks alive.
+  const bgTrees = [
+    [14, 8],[10,14],[18,8],[30, 8],[40,14],[38,10],
+    [8, 30],[8, 38],[14,40],[38,40],[40,38],[40,30],
+  ];
+  bgTrees.forEach(([tx, ty]) => {
+    const px = tx * TILE_SIZE, py = ty * TILE_SIZE;
+    // Shadow ellipse on ground
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.beginPath();
+    ctx.ellipse(px + 8, py + 14, 7, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
 
   worldGfx.refresh();
+  console.log('[createTextures] ✓ Pokémon starter town drawn (800×800, tile=16px)');
 
-  // ── PLAYER SPRITE — 4 direction textures × 2 walk frames each ──
+  // ── PLAYER SPRITE — 8 direction-frame textures ──
   const playerFrames = {
     player_down:    SPR_PLAYER_DOWN,
     player_up:      SPR_PLAYER_UP,
@@ -1970,48 +1805,163 @@ function _addWorldGfx(scene, depth = 2) {
  * Called on initial create() and on returning home via travel.
  */
 function spawnCityWorldObjects(scene) {
+
+  // ════════════════════════════════════════════════
+  // DEPTH-SORTED TREES — Phaser Image objects
+  // Each tree gets depth = its Y position so the
+  // player walks in front when below, behind when above.
+  //
+  // Tree positions match the town layout in createTextures.
+  // We add physics static bodies so the player can't walk through.
+  // ════════════════════════════════════════════════
+
+  const T = TILE_SIZE;
+
+  // Tree positions [tileX, tileY] — same as used in createTextures bgTrees
+  // plus interior decorative trees
+  const treeTiles = [
+    // Border trees (edge of playable area)
+    [14,8],[10,14],[18,8],[30,8],[40,14],[38,10],
+    [8,30],[8,38],[14,40],[38,40],[40,38],[40,30],
+    // Interior decorative trees
+    [13,13],[15,17],[17,13],[34,13],[36,17],[33,17],
+    [13,34],[15,37],[33,34],[35,37],
+    [20,12],[31,12],[12,20],[12,31],[38,20],[38,31],
+  ];
+
+  // Create a texture for trees (using SPR_TREE, drawn at 2× via canvas)
+  if (!scene.textures.exists('tree_obj')) {
+    const treeCanvas = scene.textures.createCanvas('tree_obj', 16, 16);
+    const tCtx = treeCanvas.getContext();
+    tCtx.imageSmoothingEnabled = false;
+    drawSprite(tCtx, SPR_TREE, 0, 0, 1);
+    treeCanvas.refresh();
+  }
+
+  // Physics static group for tree collisions
+  if (!gameState.treeGroup) {
+    gameState.treeGroup = scene.physics.add.staticGroup();
+  }
+
+  treeTiles.forEach(([tx, ty]) => {
+    const wx = tx * T + T / 2;
+    const wy = ty * T + T / 2;
+
+    // Visual tree sprite (scale=2 → 32px display)
+    const img = scene.add.image(wx, wy, 'tree_obj')
+      .setScale(2)
+      .setOrigin(0.5, 0.5);
+    // Y-depth: trees deeper on screen render in front of player
+    img.setDepth(wy + T);    // +T so the tree renders over player walking near base
+    gameState.worldObjects.push(img);
+
+    // Collision body — small rectangle at tree trunk base
+    const body = scene.physics.add.staticImage(wx, wy + 6, null)
+      .setVisible(false);
+    body.setDisplaySize(14, 8);
+    body.refreshBody();
+    gameState.worldObjects.push(body);
+    gameState.treeGroup.add(body);
+  });
+
+  // ════════════════════════════════════════════════
+  // DEPTH-SORTED BUILDINGS — drawn as tinted rectangles
+  // (the actual art is in the world canvas; these are
+  //  invisible physics bodies + depth-key images)
+  // ════════════════════════════════════════════════
+
+  // Buildings [tileX, tileY, tileW, tileH, roofColor, label]
+  const buildingDefs = [
+    { tx:5,  ty:5,  tw:6, th:5, color:'#e82020', label:'HOUSE'  },
+    { tx:36, ty:5,  tw:6, th:5, color:'#2848c0', label:'HOUSE'  },
+    { tx:5,  ty:36, tw:7, th:5, color:'#e82020', label:'HOME'   },
+    { tx:36, ty:36, tw:7, th:5, color:'#289048', label:'SHOP'   },
+  ];
+
+  if (!gameState.buildingGroup) {
+    gameState.buildingGroup = scene.physics.add.staticGroup();
+  }
+
+  buildingDefs.forEach(b => {
+    const px = b.tx * T, py = b.ty * T;
+    const bw = b.tw * T, bh = b.th * T;
+
+    // Invisible physics rectangle covering the building footprint
+    const body = scene.physics.add.staticImage(px + bw/2, py + bh/2, null)
+      .setVisible(false);
+    body.setDisplaySize(bw, bh);
+    body.refreshBody();
+    gameState.worldObjects.push(body);
+    gameState.buildingGroup.add(body);
+
+    // Depth marker — invisible point at building bottom for sorting
+    // The actual pixels are in the worldmap canvas (depth=0)
+    // We add a thin Phaser rect at the building's bottom edge to act as
+    // the depth reference so the player renders correctly behind/in-front
+    const depthRef = scene.add.rectangle(px + bw/2, py + bh, bw, 2, 0x000000, 0)
+      .setDepth(py + bh);
+    gameState.worldObjects.push(depthRef);
+  });
+
+  // ════════════════════════════════════════════════
+  // WORLD LABELS (floating text over locations)
+  // ════════════════════════════════════════════════
+
   const WORLD_LABELS = [
-    [312, 44,  'TOWN HALL',        '#ffcc44', 'Mayor Sol · Vote Here'],
-    [48,  538, "MIRA'S CAFÉ",      '#E8A598', 'Shop · Jobs · Gossip' ],
-    [592, 44,  "ORION'S WORKSHOP", '#FF6B35', 'Shop · Jobs'          ],
-    [624, 566, 'MARKET',           '#81C784', 'Trade · Buy · Sell'   ],
-    [400, 350, 'TOWN SQUARE',      '#aabbff', 'Events · Politics'    ],
-    [128, 116, 'THE PARK',         '#44ff88', 'Nature · Gossip'      ],
+    [5*T + 3*T,   4*T,   'HOUSE',   '#f8d030', null],
+    [36*T + 3*T,  4*T,   'HOUSE',   '#3878f8', null],
+    [5*T + 3.5*T, 35*T,  'HOME',    '#f8d030', null],
+    [36*T + 3.5*T,35*T,  'SHOP',    '#78c850', 'Buy · Sell'],
+    [24.5*T,      19*T,  'TOWN SQ', '#f8f8f8', 'Events · Gossip'],
   ];
   for (const [wx, wy, text, color, sub] of WORLD_LABELS) {
     const t = scene.add.text(wx, wy, text, {
       fontSize: '6px', fontFamily: "'Press Start 2P'",
-      color, stroke: '#000000', strokeThickness: 3,
+      color, stroke: '#181018', strokeThickness: 3,
       backgroundColor: '#00000055', padding: { x: 4, y: 2 },
-      align: 'center',
-    }).setDepth(5).setOrigin(0.5, 1);
+    }).setDepth(5000).setOrigin(0.5, 1);
     gameState.worldObjects.push(t);
     if (sub) {
       const s = scene.add.text(wx, wy + 3, sub, {
         fontSize: '4px', fontFamily: "'Press Start 2P'",
-        color: '#556677', stroke: '#000000', strokeThickness: 2, align: 'center',
-      }).setDepth(5).setOrigin(0.5, 0);
+        color: '#a0a0b0', stroke: '#181018', strokeThickness: 2,
+      }).setDepth(5000).setOrigin(0.5, 0);
       gameState.worldObjects.push(s);
     }
   }
 
+  // ── ZONE MARKERS ──
   const ZONE_MARKERS = [
-    [312, 96,  18, 0xffcc44, 'VOTE' ],
-    [48,  580, 18, 0xe8a598, 'SHOP' ],
-    [592, 96,  18, 0xff6b35, 'SHOP' ],
-    [624, 608, 18, 0x81c784, 'TRADE'],
+    [24.5*T, 24.5*T, 20, 0xf8d030, 'SQUARE'],
+    [36*T+3.5*T, 41*T, 18, 0x78c850, 'SHOP'],
   ];
   const mgfx = _addWorldGfx(scene, 2);
   for (const [cx, cy, r, col, lbl] of ZONE_MARKERS) {
-    mgfx.lineStyle(1, col, 0.5);  mgfx.strokeCircle(cx, cy, r);
-    mgfx.fillStyle(col, 0.08);    mgfx.fillCircle(cx, cy, r);
+    mgfx.lineStyle(1, col, 0.4); mgfx.strokeCircle(cx, cy, r);
+    mgfx.fillStyle(col, 0.06);   mgfx.fillCircle(cx, cy, r);
     const lt = scene.add.text(cx, cy, lbl, {
       fontSize: '4px', fontFamily: "'Press Start 2P'",
       color: '#' + col.toString(16).padStart(6,'0'),
       stroke: '#000', strokeThickness: 2, alpha: 0.7,
-    }).setDepth(3).setOrigin(0.5, 0.5);
+    }).setDepth(4).setOrigin(0.5, 0.5);
     gameState.worldObjects.push(lt);
   }
+
+  // ── DEBUG HUD — confirms depth system is active ──
+  const debugText = scene.add.text(8, 8, '⬛ Depth System Active', {
+    fontSize: '6px', fontFamily: "'Press Start 2P'",
+    color: '#78c850', stroke: '#181018', strokeThickness: 2,
+    backgroundColor: '#00000088', padding: { x:4, y:3 },
+  }).setScrollFactor(0).setDepth(9999);
+  gameState.worldObjects.push(debugText);
+
+  // Depth value display (updated in update())
+  gameState._depthDebugText = scene.add.text(8, 24, '', {
+    fontSize: '5px', fontFamily: "'Press Start 2P'",
+    color: '#a0a0b0', stroke: '#181018', strokeThickness: 2,
+    backgroundColor: '#00000088', padding: { x:3, y:2 },
+  }).setScrollFactor(0).setDepth(9999);
+  gameState.worldObjects.push(gameState._depthDebugText);
 }
 
 /**
@@ -2566,8 +2516,8 @@ class GameScene extends Phaser.Scene {
     gameState.mySprite = this.physics.add.sprite(gameState.myX, gameState.myY, 'player_down');
     gameState.mySprite.setCollideWorldBounds(true);
     gameState.mySprite.setScale(2);   // 16px art → 32px display
-    gameState.mySprite.setDepth(10);
-    console.log('[sprite] player_down loaded, scale=2, size=16→32px');
+    // Depth is NOT set here — it's set to sp.y every frame in update() for Y-sorting
+    console.log('[sprite] player_down loaded, scale=2, Y-depth sorting active');
     this.cameras.main.startFollow(gameState.mySprite, true, CAM_LERP, CAM_LERP);
     this._playerDir = 'down';
     this._walkFrame = 0;
@@ -2628,8 +2578,16 @@ class GameScene extends Phaser.Scene {
     // All non-player, non-NPC scene objects that are town-specific live here.
     gameState.worldObjects = [];
 
-    // Spawn world labels + zone markers for the home town (city)
+    // Spawn world labels + zone markers + depth-sorted trees/buildings for home town
     spawnCityWorldObjects(this);
+
+    // ── COLLISION — player cannot walk through trees or buildings ──
+    if (gameState.treeGroup) {
+      this.physics.add.collider(gameState.mySprite, gameState.treeGroup);
+    }
+    if (gameState.buildingGroup) {
+      this.physics.add.collider(gameState.mySprite, gameState.buildingGroup);
+    }
 
     // Job progress bar (world-space, shown while a job is active)
     this.jobBar = this.add.graphics().setDepth(25).setVisible(false);
@@ -2864,6 +2822,18 @@ class GameScene extends Phaser.Scene {
     gameState.myX = sp.x;
     gameState.myY = sp.y;
 
+    // ── Y-DEPTH SORTING — every frame ──
+    // Higher Y = closer to camera = renders in front of objects with lower Y.
+    // This makes the player walk behind trees when above them,
+    // and in front of trees when below them.
+    sp.setDepth(sp.y);
+    this.myNameTag.setDepth(sp.y + 1);
+
+    // Update debug text
+    if (gameState._depthDebugText) {
+      gameState._depthDebugText.setText(`Y:${Math.round(sp.y)} depth:${Math.round(sp.y)}`);
+    }
+
     // Name tag
     this.myNameTag.setPosition(sp.x, sp.y-20);
     if (this.myNameTag.text !== myName) this.myNameTag.setText(myName);
@@ -2876,11 +2846,15 @@ class GameScene extends Phaser.Scene {
       if (p.label) p.label.setPosition(p.sprite.x, p.sprite.y-14);
     }
 
-    // ── NPC WALK ANIMATION ──
+    // ── NPC WALK ANIMATION + Y-DEPTH SORTING ──
     for (const npc of gameState.npcs) {
       const data = gameState.npcSprites[npc.id];
       if (!data) continue;
       const sp2 = data.sprite;
+
+      // Y-depth: NPC renders in front/behind player based on Y position
+      sp2.setDepth(npc.y);
+
       const vx = sp2.body ? Math.abs(sp2.body.velocity.x) : 0;
       const vy = sp2.body ? Math.abs(sp2.body.velocity.y) : 0;
       if (vx > 2 || vy > 2) {
