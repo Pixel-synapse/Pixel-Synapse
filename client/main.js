@@ -23,36 +23,46 @@
 // PALETTE (mirrors CSS :root vars)
 // ─────────────────────────────────────────────
 const PAL = {
-  void:        '#0a0a0f',
-  darkStone:   '#1a1c14',
-  sqPave:      '#2a2820',
-  stoneEdge:   '#3a3530',
-  cobble:      '#4a4540',
-  grassDark:   '#0d1a0a',
-  grassBase:   '#183010',
-  grassMid:    '#224d12',
-  grassBright: '#2e6618',
-  treeDark:    '#1a3a0d',
-  trunk:       '#a85c28',
-  wallDark:    '#241818',
-  wallMid:     '#2a1a1a',
-  roofTrim:    '#3a2020',
-  wallBlue:    '#181824',
-  wallGreen:   '#182418',
-  fountain:    '#1a2a3a',
-  panel:       '#2a2234',
-  border:      '#3344aa',
-  blue:        '#4455cc',
-  nameLt:      '#aabbff',
-  dialogue:    '#ccdde8',
-  you:         '#ffcc44',
-  online:      '#44ff88',
-  danger:      '#ff4444',
-  water:       '#88ccff',
-  interact:    '#44aaff',
-  eprompt:     '#ffff44',
-  muted:       '#556677',
+  // ── UI / system ──
+  void:        '#1a1a2e',
+  panel:       '#1a1a2e',
+  border:      '#3060d0',
+  blue:        '#3878f8',
+  nameLt:      '#f8f8f8',
+  dialogue:    '#e8e8e8',
+  you:         '#f8d030',
+  online:      '#78c850',
+  danger:      '#f83030',
+  interact:    '#58a8f8',
+  eprompt:     '#f8f858',
+  muted:       '#a0a0b0',
+
+  // ── GBA Pokémon grass palette ──
+  grassDark:   '#50a830',  // dark grass shadow
+  grassBase:   '#68c040',  // main grass green
+  grassMid:    '#80d858',  // mid grass highlight
+  grassBright: '#98f070',  // bright tuft
+  treeDark:    '#287818',  // tree shadow
+  trunk:       '#c07030',  // tree trunk brown
+
+  // ── Path / ground ──
+  sqPave:      '#e0c878',  // bright sand/path
+  stoneEdge:   '#b8a050',  // path edge
+  cobble:      '#d0b860',  // path mid
+  darkStone:   '#a09050',  // dark path
+
+  // ── Water ──
+  fountain:    '#3898f8',  // water bright blue
+  water:       '#70b8ff',  // water highlight
+
+  // ── Buildings ──
+  wallDark:    '#c02020',  // red roof dark
+  wallMid:     '#e83030',  // red roof main
+  roofTrim:    '#f86060',  // red roof highlight
+  wallBlue:    '#2848c0',  // blue roof
+  wallGreen:   '#289048',  // green accent
 };
+
 
 // ─────────────────────────────────────────────
 // CONSTANTS
@@ -125,246 +135,212 @@ function showToast(msg, duration = 2000) {
 // _ = transparent, K = outline black
 // ─────────────────────────────────────────────
 
-// Color key → hex. Used by drawSprite().
+// ─────────────────────────────────────────────
+// GBA POKÉMON-STYLE SPRITE SYSTEM
+// Bright palette · big head · 16×16 canvas · scale=2 display
+// 2-3 tone shading per region — matches FireRed/LeafGreen style
+// ─────────────────────────────────────────────
 const SPRITE_COLORS = {
-  K: '#0a0a0a',  // outline / dark edge
-  S: '#d4a574',  // skin light
-  s: '#c49060',  // skin shadow
-  H: '#ffcc44',  // hair / hat gold
-  h: '#cc9922',  // hair shadow
-  B: '#4455cc',  // shirt blue  (player)
-  b: '#2233aa',  // shirt shadow
-  T: '#ccdde8',  // pants light
-  t: '#aabbcc',  // pants shadow
-  G: '#224d12',  // NPC shirt green
-  g: '#183010',  // NPC shirt shadow
-  E: '#44ff88',  // leaf / accent
-  R: '#a85c28',  // wood / trunk
-  r: '#7a3e18',  // wood shadow
-  Y: '#888780',  // stone / NPC pants
-  y: '#5f5e5a',  // stone shadow
-  W: '#f5f0e8',  // furniture light
-  w: '#ddd8cc',  // furniture shadow
-  P: '#ce93d8',  // NPC shirt (overridden per NPC)
-  p: '#8844aa',  // NPC shirt shadow
-  C: '#00e5ff',  // accent cyan
-  c: '#90a4ae',  // neutral body
+  K: '#181018',  // near-black outline
+  S: '#f8c888',  // skin light (warm peach)
+  s: '#d88048',  // skin shadow
+  H: '#e82020',  // hat red (player)
+  h: '#a01010',  // hat shadow
+  B: '#3060e0',  // shirt blue (player)
+  b: '#1838a0',  // shirt shadow
+  I: '#80a8f8',  // shirt highlight
+  T: '#383878',  // pants dark blue
+  t: '#202050',  // pants shadow
+  P: '#e03820',  // NPC shirt (overridden per NPC)
+  p: '#901808',  // NPC shirt shadow
+  Y: '#606060',  // NPC pants grey
+  y: '#404040',  // NPC pants shadow
+  E: '#181018',  // eye detail
+  G: '#50b020',  // leaf bright
+  g: '#287810',  // leaf dark
+  L: '#78d838',  // leaf highlight
+  R: '#c07030',  // trunk
+  r: '#804010',  // trunk shadow
+  W: '#f0e8d0',  // furniture light
+  w: '#c0a870',  // furniture mid
   _: null,       // transparent
 };
 
-// ─────────────────────────────────────────────
-// UNIFIED 32×32 SPRITE SYSTEM
-//
-// Every character — player AND NPCs — uses the same
-// base 32×32 grid. NPCs differ only by shirt/pants
-// color (via colorOverrides). This guarantees visual
-// consistency across all entities in the world.
-//
-// Grid uses 2-char rows × 32 cols (each char = 1px).
-// ─────────────────────────────────────────────
-
-// ── CHARACTER BASE — facing DOWN (idle) ──
-// ── PLAYER — 4 DIRECTION FRAMES ──
+// ── PLAYER DOWN ──
 const SPR_PLAYER_DOWN = [
-  '_____KKKKKK_____',
-  '____KHHHHHHK____',
-  '____KHHHHHHK____',
-  '____KSSSSSSK____',
-  '____KSKssKSK____',
-  '____KSSSSSSK____',
-  '____KsSSSSsK____',
-  '__KKKBBBBBBKKK__',
-  '_KBBBBBBBBBBBBK_',
-  '_KbBBBBBBBBBBbK_',
-  '_KbBBBBBBBBBBbK_',
-  '__KKKBBKKBBKKK__',
-  '____KTTKKTTK____',
-  '____KTTKKTTK____',
+  '____KKKKKKKK____',
+  '___KHHHHHHhhK___',
+  '___KHHHHHHhhK___',
+  '___KKKKKKKKhK___',
+  '___KSSeSSeSSK___',
+  '___KSSSSssSSK___',
+  '___KSSSssSSsK___',
+  '__KKKBBBBBBKkK__',
+  '__KBBBBBBBBBbK__',
+  '__KBBIBBBIBBbK__',
+  '__KBBBBBBBBBbK__',
+  '__KKKBBBBBBKkK__',
+  '____KTTKKTtK____',
+  '____KTTKKTtK____',
   '____KttKKttK____',
-  '____KKK__KKK____',
+  '____KKKK_KKK____',
 ];
-const SPR_PLAYER_UP = [
-  '_____KKKKKK_____',
-  '____KHHHHHHK____',
-  '____KHHHHHHK____',
-  '____KHssssHK____',
-  '____KSSSSSSK____',
-  '____KSSSSSSK____',
-  '____KsSSSSsK____',
-  '__KKKBBBBBBKKK__',
-  '_KBBBBBBBBBBBBK_',
-  '_KbBBBBBBBBBBbK_',
-  '_KbBBBBBBBBBBbK_',
-  '__KKKBBKKBBKKK__',
-  '____KTTKKTTK____',
-  '____KTTKKTTK____',
-  '____KttKKttK____',
-  '____KKK__KKK____',
-];
-const SPR_PLAYER_RIGHT = [
-  '______KKKKK_____',
-  '_____KHHHHHHK___',
-  '_____KHHHHhhK___',
-  '_____KSSSsSSK___',
-  '_____KSKSSSK____',
-  '_____KSSSSsKK___',
-  '_____KsSSSSBK___',
-  '___KKKBBBBBBBK__',
-  '__KBBBBBBBBBBbK_',
-  '__KbBBBBBBBBBbK_',
-  '__KKKKBBBBBBKKK_',
-  '_____KBBKKBBK___',
-  '_____KTTKKTTK___',
-  '_____KTTK_KTTK__',
-  '_____KttK__KtK__',
-  '_____KKK___KKK__',
-];
-// Left = right mirrored, computed at runtime
-const SPR_PLAYER_LEFT = SPR_PLAYER_RIGHT.map(r => r.split('').reverse().join(''));
-
-// ── PLAYER WALK FRAME B — legs swapped (2-frame walk cycle) ──
-// Down walk — right leg forward
 const SPR_PLAYER_DOWN_B = SPR_PLAYER_DOWN.map((row, y) => {
-  if (y === 12) return '____KTTKKttK____';
-  if (y === 13) return '____KttKKTTK____';
-  if (y === 14) return '____KTtK_KTtK___';
-  if (y === 15) return '____KKK___KKK___';
+  if (y===12) return '____KTtKKTTK____';
+  if (y===13) return '____KTtKKTTK____';
+  if (y===14) return '____KttKKttK____';
+  if (y===15) return '___KKKK__KKKK___';
   return row;
 });
-// Up walk — right leg forward
+
+// ── PLAYER UP ──
+const SPR_PLAYER_UP = [
+  '____KKKKKKKK____',
+  '___KHHHHHHhhK___',
+  '___KHHHHHHhhK___',
+  '___KKKKKKKKhK___',
+  '___KSSSSssSSK___',
+  '___KSSSSssSSK___',
+  '___KSSSSssSSK___',
+  '__KKKBBBBBBKkK__',
+  '__KBBBBBBBBBbK__',
+  '__KBBIBBBIBBbK__',
+  '__KBBBBBBBBBbK__',
+  '__KKKBBBBBBKkK__',
+  '____KTTKKTtK____',
+  '____KTTKKTtK____',
+  '____KttKKttK____',
+  '____KKKK_KKK____',
+];
 const SPR_PLAYER_UP_B = SPR_PLAYER_UP.map((row, y) => {
-  if (y === 12) return '____KTTKKttK____';
-  if (y === 13) return '____KttKKTTK____';
-  if (y === 14) return '____KTtK_KTtK___';
-  if (y === 15) return '____KKK___KKK___';
+  if (y===12) return '____KTtKKTTK____';
+  if (y===13) return '____KTtKKTTK____';
+  if (y===14) return '____KttKKttK____';
+  if (y===15) return '___KKKK__KKKK___';
   return row;
 });
-// Right walk B — leg swap
+
+// ── PLAYER RIGHT ──
+const SPR_PLAYER_RIGHT = [
+  '_____KKKKKK_____',
+  '____KHHHHhhK____',
+  '____KHHHHhhK____',
+  '____KKKKKKhK____',
+  '____KSSeSsK_____',
+  '____KSSSssK_____',
+  '____KSSssKK_____',
+  '___KKBBBBBbK____',
+  '__KBBBBBBBBbK___',
+  '__KBIBBBBBbK____',
+  '__KBBBBBBBbK____',
+  '___KKBBBBKkK____',
+  '____KTTKttK_____',
+  '____KTTKttK_____',
+  '____KttK_KK_____',
+  '____KKKK________',
+];
 const SPR_PLAYER_RIGHT_B = SPR_PLAYER_RIGHT.map((row, y) => {
-  if (y === 12) return '_____KttKKTTK___';
-  if (y === 13) return '_____KTTK_KtTK__';
-  if (y === 14) return '_____KTtK__KTK__';
-  if (y === 15) return '_____KKK___KKK__';
+  if (y===12) return '____KttKTTK_____';
+  if (y===13) return '____KttKTTK_____';
+  if (y===14) return '____KTTK_KK_____';
+  if (y===15) return '____KKKK________';
   return row;
 });
+const SPR_PLAYER_LEFT   = SPR_PLAYER_RIGHT.map(r => r.split('').reverse().join(''));
 const SPR_PLAYER_LEFT_B = SPR_PLAYER_RIGHT_B.map(r => r.split('').reverse().join(''));
 
-// ── NPC — IDLE + 2 WALK FRAMES ──
+// ── NPC BASE (shirt P/p overridden per NPC via colorOverrides) ──
 const SPR_NPC_IDLE = [
-  '_____KKKKKK_____',
-  '____KPPPPPPK____',
-  '____KPPPPPPK____',
-  '____KSSSSSSK____',
-  '____KSKssKSK____',
-  '____KSSEsssk____',
-  '____KsSSSSsK____',
-  '__KKKGGGGGGKKK__',
-  '_KGGGGGGGGGGGGK_',
-  '_KgGGGGGGGGGGgK_',
-  '_KgGGGGGGGGGGgK_',
-  '__KKKGGKKGGKKK__',
-  '____KYYKKYYК____',
-  '____KYYKKYYК____',
-  '____KyyKKyyK____',
-  '____KKK__KKK____',
-];
-// Walk A — left leg forward
-const SPR_NPC_WALK_A = [
-  '_____KKKKKK_____',
-  '____KPPPPPPK____',
-  '____KPPPPPPK____',
-  '____KSSSSSSK____',
-  '____KSKssKSK____',
-  '____KSSEsssk____',
-  '____KsSSSSsK____',
-  '__KKKGGGGGGKKK__',
-  '_KGGGGGGGGGGGGK_',
-  '_KgGGGGGGGGGGgK_',
-  '_KgGGGGGGGGGGgK_',
-  '__KKKGGKKGGKKK__',
-  '____KYyKKYYK____',
-  '____KyYKKYYK____',
-  '____KYYК_KyyK___',
-  '____KKK___KKK___',
-];
-// Walk B — right leg forward
-const SPR_NPC_WALK_B = [
-  '_____KKKKKK_____',
-  '____KPPPPPPK____',
-  '____KPPPPPPK____',
-  '____KSSSSSSK____',
-  '____KSKssKSK____',
-  '____KSSEsssk____',
-  '____KsSSSSsK____',
-  '__KKKGGGGGGKKK__',
-  '_KGGGGGGGGGGGGK_',
-  '_KgGGGGGGGGGGgK_',
-  '_KgGGGGGGGGGGgK_',
-  '__KKKGGKKGGKKK__',
+  '____KKKKKKKK____',
+  '___KSSSSSSssK___',
+  '___KSSSSSSssK___',
+  '___KSSSSSSssK___',
+  '___KSSeSSeSSK___',
+  '___KSSSSssSSK___',
+  '___KSSSssSSsK___',
+  '__KKKPPPPPPKkK__',
+  '__KPPPPPPPPPpK__',
+  '__KPPPPPPPPPpK__',
+  '__KPPPPPPPPPpK__',
+  '__KKKPPPPPPKkK__',
   '____KYYKKYyK____',
-  '____KYYKKyYK____',
-  '___KyyK_KYYК____',
-  '___KKK___KKK____',
+  '____KYYKKYyK____',
+  '____KyyKKyyK____',
+  '____KKKK_KKK____',
 ];
+const SPR_NPC_WALK_A = SPR_NPC_IDLE.map((row, y) => {
+  if (y===12) return '____KYyKKYYK____';
+  if (y===13) return '____KYyKKYYK____';
+  if (y===14) return '____KYyK_KyK____';
+  if (y===15) return '____KKKK_KKK____';
+  return row;
+});
+const SPR_NPC_WALK_B = SPR_NPC_IDLE.map((row, y) => {
+  if (y===12) return '____KYYKKYyK____';
+  if (y===13) return '____KYYKKYyK____';
+  if (y===14) return '____KyK__KYK____';
+  if (y===15) return '____KKK__KKK____';
+  return row;
+});
 
 // ── OBJECTS ──
+const SPR_TREE = [
+  '____KKKKKK______',
+  '___KGGGGGgK_____',
+  '__KGGLGGLGgK____',
+  '_KGGGGGGGGGgK___',
+  '_KGLGGGGGLGgK___',
+  'KGGGGGGGGGGGgK__',
+  'KGGLGGGGGLGGgK__',
+  'KGGGGGGGGGGGGK__',
+  '_KKGGGGGGGKK____',
+  '____KRRRRK______',
+  '____KRRRrK______',
+  '____KRrrRK______',
+  '____KrRRrK______',
+  '____KKKKKK______',
+  '________________',
+  '________________',
+];
 const SPR_TABLE = [
   '________________',
+  '__KKKKKKKKKKKK__',
+  '__KWWWWWWWWWwK__',
+  '__KwWWWWWWWWwK__',
+  '__KKKKKKKKKKKK__',
+  '____KRRK_KRRK___',
+  '____KRRK_KRRK___',
+  '____KrRK_KrRK___',
+  '____KKKK_KKKK___',
   '________________',
-  '_KKKKKKKKKKKKKK_',
-  '_KWWWWWWWWWWWwK_',
-  '_KwWWWWWWWWWWwK_',
-  '_KKKKKKKKKKKKKK_',
-  '____KRRK__KRRK__',
-  '____KRRK__KRRK__',
-  '____KRRK__KRRK__',
-  '____KrRK__KrRK__',
-  '____KRrK__KRrK__',
-  '____KKKK__KKKK__',
+  '________________',
+  '________________',
   '________________',
   '________________',
   '________________',
   '________________',
 ];
 const SPR_CHAIR = [
-  '________________',
-  '___KKKKKKKKK____',
-  '___KRRRRRRrK____',
-  '___KRRRRRRrK____',
-  '___KrRRRRRrK____',
+  '___KKKKKKK______',
+  '___KRRRRRrK_____',
+  '___KRRRRRrK_____',
+  '___KrRRRRrK_____',
   '___KKKKKKKKK____',
   '___KWWWWWWwK____',
   '___KwWWWWWwK____',
-  '___KWWWWWWwK____',
-  '___KKKKKKKKK____',
+  '___KKKKKKKK_____',
   '___KRK___KRK____',
   '___KRK___KRK____',
   '___KrK___KrK____',
   '___KKK___KKK____',
   '________________',
   '________________',
-];
-const SPR_TREE = [
-  '_____KKKK_______',
-  '____KGGGgK______',
-  '___KGGGGGgK_____',
-  '__KGGEGGGGgK____',
-  '_KGGGGGGGGGgK___',
-  '_KGGGGGGGGggK___',
-  'KGGGGGGGGGGGgK__',
-  'KgGGGGGGGGGGgK__',
-  'KGGGGGGGGGGGGK__',
-  '_KGGGGGGGGGGK___',
-  '_KKGGGGGGGKK____',
-  '____KKKKKKK_____',
-  '_____KRRK_______',
-  '_____KrRK_______',
-  '_____KRrK_______',
-  '_____KKKK_______',
+  '________________',
+  '________________',
 ];
 
-// NPC walk animation sequence (frame index → sprite array)
 const NPC_WALK_FRAMES = [SPR_NPC_IDLE, SPR_NPC_WALK_A, SPR_NPC_IDLE, SPR_NPC_WALK_B];
+
 
 
 
@@ -393,11 +369,11 @@ function drawSprite(ctx, grid, ox, oy, S, colorOverrides) {
  * use their unique color while keeping skin/outline the same.
  */
 function npcColorOverrides(color) {
+  // Override the shirt (P/p) with this NPC's unique color.
+  // Everything else (skin, pants, outline) stays as defined in SPRITE_COLORS.
   return {
     P: color,
-    p: darkenHex(color, 40),
-    G: darkenHex(color, 10),
-    g: darkenHex(color, 25),
+    p: darkenHex(color, 35),
   };
 }
 
@@ -1475,100 +1451,123 @@ document.getElementById('dialogue-input').addEventListener('keydown', (e) => {
 // ─────────────────────────────────────────────
 
 /** Draw a 16×16 grass tile at canvas pixel (px,py) */
+// ─────────────────────────────────────────────
+// GBA POKÉMON TILE DRAWING FUNCTIONS
+// Each tile is 16×16px — displayed at 16px
+// World canvas is 800×800, TILE_SIZE=16
+// Colours match classic FireRed/LeafGreen GBA palette
+// ─────────────────────────────────────────────
+
+/** Bright GBA grass tile (3 tones, grass tufts) */
 function drawGrassTile(ctx, px, py) {
-  for (let y=0;y<16;y++) for (let x=0;x<16;x++) {
-    const v=(x+y)%3;
-    ctx.fillStyle = v===0?PAL.grassBase : v===1?PAL.grassMid : PAL.grassDark;
-    ctx.fillRect(px+x, py+y, 1,1);
+  // Base fill
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = (x * 3 + y * 5) % 7;
+      ctx.fillStyle = v < 3 ? '#68c040' : v < 5 ? '#80d858' : '#50a830';
+      ctx.fillRect(px + x, py + y, 1, 1);
+    }
   }
-  // blade tufts
-  ctx.fillStyle = PAL.grassBright;
-  [[2,1],[7,3],[12,2],[4,9],[10,8],[1,13],[14,12],[8,14]]
-    .forEach(([tx,ty]) => ctx.fillRect(px+tx, py+ty, 1,2));
+  // Bright tuft accents
+  ctx.fillStyle = '#98f070';
+  [[2,1],[6,4],[12,2],[4,9],[10,7],[1,13],[14,11],[8,14],[11,5],[3,12]]
+    .forEach(([tx, ty]) => ctx.fillRect(px + tx, py + ty, 1, 2));
+  // Dark shadow roots
+  ctx.fillStyle = '#50a830';
+  [[2,3],[6,6],[12,4],[4,11],[10,9]].forEach(([tx,ty]) => ctx.fillRect(px+tx,py+ty,1,1));
 }
 
-/** Draw a 16×16 road tile at (px,py) */
+/** GBA-style sandy path tile */
 function drawRoadTile(ctx, px, py) {
-  for (let y=0;y<16;y++) for (let x=0;x<16;x++) {
-    ctx.fillStyle = (x+y)%4<2 ? PAL.sqPave : '#221e18';
-    ctx.fillRect(px+x, py+y, 1,1);
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const v = (x * 2 + y * 3) % 5;
+      ctx.fillStyle = v < 2 ? '#e0c878' : v < 4 ? '#d0b860' : '#c8a850';
+      ctx.fillRect(px + x, py + y, 1, 1);
+    }
   }
-  ctx.fillStyle = PAL.stoneEdge;
-  for (let i=0;i<16;i++) {
-    ctx.fillRect(px+i, py,    1,1);
-    ctx.fillRect(px+i, py+15, 1,1);
-  }
+  // Edge highlight (top)
+  ctx.fillStyle = '#f0d890';
+  for (let x = 0; x < 16; x++) ctx.fillRect(px + x, py, 1, 1);
+  // Edge shadow (bottom)
+  ctx.fillStyle = '#b09040';
+  for (let x = 0; x < 16; x++) ctx.fillRect(px + x, py + 15, 1, 1);
 }
 
-/** Draw a 16×16 cobblestone tile at (px,py) */
+/** GBA cobblestone town square tile */
 function drawCobbleTile(ctx, px, py) {
-  ctx.fillStyle = PAL.darkStone;
-  ctx.fillRect(px,py,16,16);
-  [[1,1,6,5],[8,1,6,5],[1,7,4,5],[6,7,9,5],[1,13,6,2],[8,13,6,2]]
-    .forEach(([sx,sy,sw,sh]) => {
-      ctx.fillStyle = PAL.sqPave;
-      ctx.fillRect(px+sx, py+sy, sw, sh);
-      ctx.fillStyle = PAL.stoneEdge;
-      ctx.fillRect(px+sx, py+sy, sw,1);
-      ctx.fillRect(px+sx, py+sy, 1, sh);
-    });
+  ctx.fillStyle = '#c0b070';
+  ctx.fillRect(px, py, 16, 16);
+  // Stone blocks
+  const stones = [[1,1,6,5],[8,1,6,5],[1,7,4,5],[6,7,8,5],[1,13,6,2],[8,13,6,2]];
+  stones.forEach(([sx, sy, sw, sh]) => {
+    ctx.fillStyle = '#d8c880';
+    ctx.fillRect(px+sx, py+sy, sw, sh);
+    ctx.fillStyle = '#e8d890';  // top highlight
+    ctx.fillRect(px+sx, py+sy, sw, 1);
+    ctx.fillStyle = '#a09060';  // left shadow
+    ctx.fillRect(px+sx, py+sy, 1, sh);
+  });
 }
 
-/** Draw a 16×16 brick wall tile at (px,py) */
+/** GBA house wall tile (warm cream + window) */
 function drawWallTile(ctx, px, py) {
-  ctx.fillStyle = PAL.wallDark;
-  ctx.fillRect(px,py,16,16);
-  for (let row=0;row<4;row++) {
-    const off = row%2===0?0:4;
-    for (let col=0;col<3;col++) {
-      const bx=(col*6+off)%16, by=row*4;
-      ctx.fillStyle = PAL.wallMid;
-      ctx.fillRect(px+bx, py+by+1, 5,2);
-      ctx.fillStyle = PAL.roofTrim;
-      ctx.fillRect(px+bx, py+by+1, 5,1);
+  // Warm cream wall
+  ctx.fillStyle = '#f0e8c0';
+  ctx.fillRect(px, py, 16, 16);
+  // Shadow on left/bottom
+  ctx.fillStyle = '#d8d0a8';
+  for (let y = 0; y < 16; y++) { ctx.fillRect(px, py+y, 1, 1); ctx.fillRect(px+y, py+15, 1, 1); }
+  // Highlight top/right
+  ctx.fillStyle = '#fffff0';
+  for (let x = 0; x < 16; x++) ctx.fillRect(px+x, py, 1, 1);
+}
+
+/** GBA water tile (bright blue with wave highlights) */
+function drawWaterTile(ctx, px, py) {
+  // Base blue
+  ctx.fillStyle = '#3898f8';
+  ctx.fillRect(px, py, 16, 16);
+  // Darker mid
+  ctx.fillStyle = '#2878d8';
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      if ((x + y * 2) % 5 === 0) ctx.fillRect(px+x, py+y, 1, 1);
+    }
+  }
+  // Bright wave highlights
+  ctx.fillStyle = '#70c8ff';
+  [[2,2],[8,4],[12,1],[4,8],[10,10],[6,13],[14,7]].forEach(([x,y]) => ctx.fillRect(px+x, py+y, 2, 1));
+  // White sparkle
+  ctx.fillStyle = '#c8f0ff';
+  [[3,2],[9,4],[5,8],[11,10]].forEach(([x,y]) => ctx.fillRect(px+x, py+y, 1, 1));
+}
+
+/** GBA dirt path tile (for vertical roads) */
+function drawPathTile(ctx, px, py) {
+  for (let y = 0; y < 16; y++) {
+    for (let x = 0; x < 16; x++) {
+      const n = (x * 7 + y * 11) % 11;
+      ctx.fillStyle = n < 5 ? '#c8a858' : n < 8 ? '#b89848' : '#a08838';
+      ctx.fillRect(px + x, py + y, 1, 1);
     }
   }
 }
 
-/** Draw a 16×16 water tile at (px,py) */
-function drawWaterTile(ctx, px, py) {
-  ctx.fillStyle = PAL.fountain;
-  ctx.fillRect(px,py,16,16);
-  ctx.fillStyle = '#2244aa';
-  [1,5,9,13].forEach(y => {
-    for (let x=0;x<16;x++) if ((x+y)%3!==0) ctx.fillRect(px+x,py+y,1,1);
-  });
-  ctx.fillStyle = PAL.water;
-  [[3,2],[7,6],[11,4],[5,10],[13,12]].forEach(([x,y])=>ctx.fillRect(px+x,py+y,2,1));
-}
-
-/** Draw a 16×16 path tile at (px,py) */
-function drawPathTile(ctx, px, py) {
-  for (let y=0;y<16;y++) for (let x=0;x<16;x++) {
-    const n=(x*7+y*11)%17;
-    ctx.fillStyle = n<9?PAL.sqPave : n<14?'#241e18':'#1e1a14';
-    ctx.fillRect(px+x,py+y,1,1);
-  }
-  ctx.fillStyle = PAL.cobble;
-  [[1,0],[8,2],[14,1],[3,15],[11,14]].forEach(([x,y])=>ctx.fillRect(px+x,py+y,1,1));
-}
-
-/** Draw a 16×16 interior floor tile at (px,py) */
+/** GBA interior floor tile */
 function drawInteriorTile(ctx, px, py) {
-  ctx.fillStyle = '#1a1408';
-  ctx.fillRect(px,py,16,16);
-  ctx.fillStyle = '#241c10';
-  for (let y=0;y<16;y+=4)
-    for (let x=(y%8===0?0:2);x<16;x+=4)
-      ctx.fillRect(px+x,py+y,3,3);
-  ctx.fillStyle = PAL.trunk;
-  ctx.fillRect(px,py,16,1);
-  ctx.fillRect(px,py,1,16);
+  ctx.fillStyle = '#e8d8b0';
+  ctx.fillRect(px, py, 16, 16);
+  ctx.fillStyle = '#d8c8a0';
+  for (let y = 0; y < 16; y += 4) {
+    const off = (y % 8 === 0) ? 0 : 4;
+    for (let x = off; x < 16; x += 8) ctx.fillRect(px+x, py+y, 7, 3);
+  }
+  ctx.fillStyle = '#c0b090';
+  ctx.fillRect(px, py, 16, 1);
+  ctx.fillRect(px, py, 1, 16);
 }
 
-// ─────────────────────────────────────────────
-// TEXTURE GENERATION
-// ─────────────────────────────────────────────
 function createTextures(scene) {
   const worldGfx = scene.textures.createCanvas('worldmap', WORLD_W, WORLD_H);
   const ctx = worldGfx.getContext();
@@ -2162,7 +2161,7 @@ function drawTownMap(mapType, scene, worldSprite) {
   ctx.imageSmoothingEnabled = false;
 
   // Clear
-  ctx.fillStyle = '#0a0a0f';
+  ctx.fillStyle = '#1a3010';  // GBA dark-green void
   ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
   switch (mapType) {
