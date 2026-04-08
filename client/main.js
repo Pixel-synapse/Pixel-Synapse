@@ -2178,6 +2178,7 @@ function spawnCityWorldObjects(scene) {
         if (tx2 > 32 && ty2 > 32) continue;
 
         pSeed++;
+        const rngP = (seed) => { let x = Math.sin(seed) * 43758; return x - Math.floor(x); };
         const r = rngP(pSeed);
         const variant = r > 0.9 ? 'shop' : r > 0.6 ? 'house_blue' : 'house_red';
         const tw = 5, th = 4;
