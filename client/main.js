@@ -106,7 +106,9 @@ const gameState = {
   // Depth + collision
   treeGroup:       null,  // staticGroup — trees
   buildingGroup:   null,  // staticGroup — buildings
+  doorGroup:       null,  // staticGroup — door entry zones
   _depthDebugText: null,  // HUD text updated every frame with player Y/depth
+  _nearDoor:       null,  // door zone player is currently overlapping
 };
 
 // ─────────────────────────────────────────────
@@ -1213,6 +1215,8 @@ function applyTravelResult(msg) {
   // Reset physics groups so they rebuild fresh for the new town
   gameState.treeGroup     = null;
   gameState.buildingGroup = null;
+  gameState.doorGroup     = null;
+  gameState._nearDoor     = null;
   gameState._depthDebugText = null;
 
   // ── 3. Spawn world labels appropriate to this town ──
@@ -1872,21 +1876,24 @@ function spawnCityWorldObjects(scene) {
 
   // Buildings [tileX, tileY, tileW, tileH, roofColor, label]
   const buildingDefs = [
-    { tx:5,  ty:5,  tw:6, th:5, color:'#e82020', label:'HOUSE'  },
-    { tx:36, ty:5,  tw:6, th:5, color:'#2848c0', label:'HOUSE'  },
-    { tx:5,  ty:36, tw:7, th:5, color:'#e82020', label:'HOME'   },
-    { tx:36, ty:36, tw:7, th:5, color:'#289048', label:'SHOP'   },
+    { tx:5,  ty:5,  tw:6, th:5, color:'#e82020', label:'HOUSE', id:'house_nw' },
+    { tx:36, ty:5,  tw:6, th:5, color:'#2848c0', label:'HOUSE', id:'house_ne' },
+    { tx:5,  ty:36, tw:7, th:5, color:'#e82020', label:'HOME',  id:'house_sw' },
+    { tx:36, ty:36, tw:7, th:5, color:'#289048', label:'SHOP',  id:'shop_se'  },
   ];
 
   if (!gameState.buildingGroup) {
     gameState.buildingGroup = scene.physics.add.staticGroup();
+  }
+  if (!gameState.doorGroup) {
+    gameState.doorGroup = scene.physics.add.staticGroup();
   }
 
   buildingDefs.forEach(b => {
     const px = b.tx * T, py = b.ty * T;
     const bw = b.tw * T, bh = b.th * T;
 
-    // Invisible physics rectangle covering the building footprint
+    // Invisible physics rectangle covering the building footprint (collision)
     const body = scene.physics.add.staticImage(px + bw/2, py + bh/2, null)
       .setVisible(false);
     body.setDisplaySize(bw, bh);
@@ -1894,13 +1901,25 @@ function spawnCityWorldObjects(scene) {
     gameState.worldObjects.push(body);
     gameState.buildingGroup.add(body);
 
-    // Depth marker — invisible point at building bottom for sorting
-    // The actual pixels are in the worldmap canvas (depth=0)
-    // We add a thin Phaser rect at the building's bottom edge to act as
-    // the depth reference so the player renders correctly behind/in-front
+    // Depth marker at building bottom edge
     const depthRef = scene.add.rectangle(px + bw/2, py + bh, bw, 2, 0x000000, 0)
       .setDepth(py + bh);
     gameState.worldObjects.push(depthRef);
+
+    // ── DOOR ZONE — overlap trigger at base of building ──
+    // Small 24×16 zone centred on the door (bottom-centre of building)
+    const doorX = px + bw / 2;
+    const doorY = py + bh + 4;          // just below front wall = doorstep
+    const door = scene.physics.add.staticImage(doorX, doorY, null)
+      .setVisible(false);
+    door.setDisplaySize(24, 16);
+    door.refreshBody();
+    door.houseId  = b.id;
+    door.houseLabel = b.label;
+    door.returnX  = doorX;
+    door.returnY  = doorY + 20;        // where player spawns on exit
+    gameState.worldObjects.push(door);
+    gameState.doorGroup.add(door);
   });
 
   // ════════════════════════════════════════════════
@@ -2568,6 +2587,17 @@ class GameScene extends Phaser.Scene {
       if (document.getElementById('travel-overlay').style.display === 'block') { closeTravelMenu(); return; }
       if (document.getElementById('vote-overlay').style.display   === 'block') { closeVote();       return; }
       if (document.getElementById('shop-overlay').style.display   === 'block') { closeShop();       return; }
+      // Enter building if standing at a door
+      if (gameState._nearDoor && !gameState.dialogueOpen) {
+        const door = gameState._nearDoor;
+        this.scene.start('HouseScene', {
+          houseId:    door.houseId,
+          houseLabel: door.houseLabel,
+          returnX:    door.returnX,
+          returnY:    door.returnY,
+        });
+        return;
+      }
       if (!gameState.dialogueOpen) this.tryInteract();
     });
 
@@ -2587,6 +2617,15 @@ class GameScene extends Phaser.Scene {
     }
     if (gameState.buildingGroup) {
       this.physics.add.collider(gameState.mySprite, gameState.buildingGroup);
+    }
+
+    // ── DOOR OVERLAP — show [E] Enter prompt near building doors ──
+    if (gameState.doorGroup) {
+      this.physics.add.overlap(
+        gameState.mySprite,
+        gameState.doorGroup,
+        (player, door) => { gameState._nearDoor = door; }
+      );
     }
 
     // Job progress bar (world-space, shown while a job is active)
@@ -2829,6 +2868,9 @@ class GameScene extends Phaser.Scene {
     sp.setDepth(sp.y);
     this.myNameTag.setDepth(sp.y + 1);
 
+    // Reset door proximity (overlap callback sets it again if still overlapping)
+    gameState._nearDoor = null;
+
     // Update debug text
     if (gameState._depthDebugText) {
       gameState._depthDebugText.setText(`Y:${Math.round(sp.y)} depth:${Math.round(sp.y)}`);
@@ -2890,7 +2932,14 @@ class GameScene extends Phaser.Scene {
 
     const anyOverlayOpen = document.getElementById('shop-overlay').style.display === 'block'
       || document.getElementById('travel-overlay').style.display === 'block';
-    if ((nearbyNpc || nearZone) && !gameState.dialogueOpen && !anyOverlayOpen) {
+
+    // Door takes highest priority for the [E] prompt
+    if (gameState._nearDoor && !gameState.dialogueOpen && !anyOverlayOpen) {
+      const doorLabel = `[E] Enter ${gameState._nearDoor.houseLabel || 'Building'}`;
+      if (this.interactPrompt.text !== doorLabel) this.interactPrompt.setText(doorLabel);
+      this.interactPrompt.setVisible(true);
+      this.interactPrompt.setPosition(sp.x, sp.y - 36);
+    } else if ((nearbyNpc || nearZone) && !gameState.dialogueOpen && !anyOverlayOpen) {
       const label = getInteractLabel(nearbyNpc?.id, nearZone);
       if (this.interactPrompt.text !== label) this.interactPrompt.setText(label);
       this.interactPrompt.setVisible(true);
@@ -4148,6 +4197,184 @@ function _escHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ═════════════════════════════════════════════════════════════════
+// HOUSE SCENE — interior of any building
+// Entered via door overlap + E key in GameScene.
+// Fully self-contained: own floor, furniture, exit zone.
+// Pressing E at the exit door returns to GameScene.
+// ═════════════════════════════════════════════════════════════════
+
+class HouseScene extends Phaser.Scene {
+  constructor() { super({ key: 'HouseScene' }); }
+
+  create(data) {
+    const T    = 16;   // tile size — matches main game
+    const COLS = 14;
+    const ROWS = 11;
+    const W    = COLS * T * 2;   // display at 2× = 448
+    const H    = ROWS * T * 2;   // display at 2× = 352
+
+    this._data = data || {};
+
+    // ── Interior floor canvas ──
+    const floorKey = `house_floor_${data?.houseId || 'default'}`;
+    if (!this.textures.exists(floorKey)) {
+      const tex = this.textures.createCanvas(floorKey, COLS * T, ROWS * T);
+      const ctx = tex.getContext();
+      ctx.imageSmoothingEnabled = false;
+      for (let ty = 0; ty < ROWS; ty++) {
+        for (let tx = 0; tx < COLS; tx++) {
+          drawInteriorTile(ctx, tx * T, ty * T);
+        }
+      }
+      // Wall strip across top (2 tiles)
+      for (let tx = 0; tx < COLS; tx++) {
+        drawWallTile(ctx, tx * T, 0);
+        drawWallTile(ctx, tx * T, T);
+      }
+      // Side walls
+      for (let ty = 2; ty < ROWS; ty++) {
+        drawWallTile(ctx, 0, ty * T);
+        drawWallTile(ctx, (COLS-1) * T, ty * T);
+      }
+      tex.refresh();
+    }
+
+    this.add.image(0, 0, floorKey).setOrigin(0, 0).setScale(2).setDepth(0);
+
+    // ── Furniture (drawn as coloured rects — simple but readable) ──
+    const furn = [
+      // [x, y, w, h, color, label]
+      [2*T*2, 2*T*2, 3*T*2, 2*T*2, 0xc07030, 'TABLE'],
+      [6*T*2, 2*T*2, 2*T*2, 2*T*2, 0x804010, 'CHAIR'],
+      [9*T*2, 2*T*2, 3*T*2, 2*T*2, 0xc07030, 'DESK'],
+      [2*T*2, 7*T*2, 2*T*2, 1*T*2, 0x2848c0, 'BED'],
+      [11*T*2,7*T*2, 2*T*2, 1*T*2, 0x2848c0, 'BED'],
+    ];
+    furn.forEach(([fx, fy, fw, fh, col, lbl]) => {
+      const rect = this.add.rectangle(fx + fw/2, fy + fh/2, fw, fh, col)
+        .setDepth(fy + fh);
+      this.add.text(fx + fw/2, fy + fh/2, lbl, {
+        fontSize: '5px', fontFamily: "'Press Start 2P'",
+        color: '#f8f8f8', stroke: '#181018', strokeThickness: 2,
+      }).setOrigin(0.5).setDepth(fy + fh + 1);
+    });
+
+    // ── Room name sign ──
+    const roomName = data?.houseLabel || 'BUILDING';
+    this.add.text(W/2, T*2 + 4, roomName, {
+      fontSize: '8px', fontFamily: "'Press Start 2P'",
+      color: '#f8d030', stroke: '#181018', strokeThickness: 3,
+      backgroundColor: '#00000088', padding: { x:6, y:3 },
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(9000);
+
+    // ── Player (reuse player_down texture from main game) ──
+    const startX = W / 2;
+    const startY = H - T * 2 * 2;
+    this._player = this.physics.add.sprite(startX, startY, 'player_down');
+    this._player.setScale(2).setCollideWorldBounds(true).setDepth(startY);
+    this.physics.world.setBounds(T*2, T*2*2, W - T*2*2, H - T*2*3);
+
+    // ── Exit zone at bottom-centre (door) ──
+    const exitX = W / 2;
+    const exitY = H - T * 2;
+    const exitZone = this.add.zone(exitX, exitY, T * 2 * 2, T * 2);
+    this.physics.world.enable(exitZone);
+    exitZone.body.setAllowGravity(false);
+    exitZone.body.moves = false;
+    this._nearExit = false;
+
+    // Door visual marker
+    this.add.rectangle(exitX, exitY, T*2*2, T*2, 0xc07030, 0.5)
+      .setDepth(exitY + 1);
+    this.add.text(exitX, exitY, 'EXIT', {
+      fontSize: '5px', fontFamily: "'Press Start 2P'",
+      color: '#f8d030', stroke: '#181018', strokeThickness: 2,
+    }).setOrigin(0.5).setDepth(exitY + 2);
+
+    this.physics.add.overlap(this._player, exitZone, () => {
+      this._nearExit = true;
+    });
+
+    // ── Camera ──
+    this.cameras.main
+      .setBounds(0, 0, W, H)
+      .startFollow(this._player, true, 0.1, 0.1)
+      .setBackgroundColor('#1a1a2e');
+
+    // ── Input ──
+    this._cursors = this.input.keyboard.createCursorKeys();
+    this._wasd    = this.input.keyboard.addKeys({
+      up:    Phaser.Input.Keyboard.KeyCodes.W,
+      down:  Phaser.Input.Keyboard.KeyCodes.S,
+      left:  Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D,
+    });
+    this._keyE = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.E);
+
+    // ── Prompt text ──
+    this._hintText = this.add.text(W/2, H - T*2 - 12, '', {
+      fontSize: '6px', fontFamily: "'Press Start 2P'",
+      color: '#f8f8f8', stroke: '#181018', strokeThickness: 3,
+      backgroundColor: '#00000099', padding: { x:4, y:3 },
+    }).setOrigin(0.5, 1).setScrollFactor(0).setDepth(9999);
+
+    // ── HUD label ──
+    this.add.text(8, 8, `⬛ ${roomName} INTERIOR`, {
+      fontSize: '6px', fontFamily: "'Press Start 2P'",
+      color: '#78c850', stroke: '#181018', strokeThickness: 2,
+      backgroundColor: '#00000088', padding: { x:4, y:3 },
+    }).setScrollFactor(0).setDepth(9999);
+
+    console.log(`[HouseScene] Entered: ${data?.houseId}`);
+  }
+
+  update() {
+    const sp    = this._player;
+    const speed = 140;
+    sp.setVelocity(0);
+
+    const L = this._cursors.left.isDown  || this._wasd.left.isDown;
+    const R = this._cursors.right.isDown || this._wasd.right.isDown;
+    const U = this._cursors.up.isDown    || this._wasd.up.isDown;
+    const D = this._cursors.down.isDown  || this._wasd.down.isDown;
+
+    if (L) sp.setVelocityX(-speed);
+    if (R) sp.setVelocityX(speed);
+    if (U) sp.setVelocityY(-speed);
+    if (D) sp.setVelocityY(speed);
+    if (L&&(U||D) || R&&(U||D)) sp.setVelocity(sp.body.velocity.x*0.707, sp.body.velocity.y*0.707);
+
+    // Y-depth inside house too
+    sp.setDepth(sp.y);
+
+    // Direction sprite swap
+    if      (L) sp.setTexture('player_left');
+    else if (R) sp.setTexture('player_right');
+    else if (U) sp.setTexture('player_up');
+    else if (D) sp.setTexture('player_down');
+
+    // Reset exit flag each frame (overlap callback sets it back if still touching)
+    const wasNear = this._nearExit;
+    this._nearExit = false;
+
+    // Overlap is checked by Phaser automatically (callback fires if overlapping)
+    if (wasNear) {
+      this._hintText.setText('[E] Exit building');
+      if (Phaser.Input.Keyboard.JustDown(this._keyE)) {
+        // Return player to the doorstep position in the town
+        const d = this._data || {};
+        gameState.myX = d.returnX || 400;
+        gameState.myY = d.returnY || 400;
+        this.scene.start('GameScene');
+        return;
+      }
+    } else {
+      this._hintText.setText('');
+    }
+  }
+}
+
 // ─────────────────────────────────────────────
 // PHASER CONFIG + BOOT
 // ─────────────────────────────────────────────
@@ -4160,7 +4387,7 @@ const config = {
   antialias: false,
   roundPixels: true,
   physics: { default:'arcade', arcade:{ gravity:{y:0}, debug:false } },
-  scene: [GameScene]
+  scene: [GameScene, HouseScene]
 };
 
 const game = new Phaser.Game(config);
