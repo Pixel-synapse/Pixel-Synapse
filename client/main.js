@@ -4276,15 +4276,17 @@ class HouseScene extends Phaser.Scene {
 
     // ── Player (reuse player_down texture from main game) ──
     const startX = W / 2;
-    const startY = H - T * 2 * 2;
+    const startY = H - T * 2 * 3;   // spawn 3 tiles from bottom — above exit mat
     this._player = this.physics.add.sprite(startX, startY, 'player_down');
     this._player.setScale(2).setCollideWorldBounds(true).setDepth(startY);
-    this.physics.world.setBounds(T*2, T*2*2, W - T*2*2, H - T*2*3);
+    // World bounds: full room width, top wall to bottom wall inclusive
+    // exitY = H - T*2 — must be INSIDE bounds so player can reach it
+    this.physics.world.setBounds(T * 2, T * 2 * 2, W - T * 4, H - T * 2);
 
-    // ── Exit zone at bottom-centre — door back to the town ──
+    // ── Exit zone — placed at the bottom of the room, inside world bounds ──
     const exitX = W / 2;
-    const exitY = H - T * 2;
-    this._exitZone = this.add.zone(exitX, exitY, T * 2 * 3, T * 2);
+    const exitY = H - T * 2;          // last tile row — inside bounds
+    this._exitZone = this.add.zone(exitX, exitY, T * 2 * 4, T * 2 * 2);  // wide + tall
     this.physics.world.enable(this._exitZone);
     this._exitZone.body.setAllowGravity(false);
     this._exitZone.body.moves = false;
