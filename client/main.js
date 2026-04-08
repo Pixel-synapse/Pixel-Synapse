@@ -1624,15 +1624,41 @@ function createTextures(scene) {
   const ctx = worldGfx.getContext();
 
   // ════════════════════════════════════════════════════════
-  // PIXEL SYNAPSE TOWN — Road grid + procedural buildings
+  // PIXEL SYNAPSE TOWN — Clean layout with named zones
   // Map: 800×800px, TILE_SIZE=16, 50×50 tiles
-  // Road grid every 8 tiles (horizontal + vertical)
-  // Buildings placed at grid intersections (avoiding roads)
+  //
+  // Layout (reference doc pattern):
+  //   • Main road H at row 30, V at col 35
+  //   • Center plaza (path tiles) at cross
+  //   • Townhall at plaza centre
+  //   • Shop district flanking plaza
+  //   • 4 residential blocks (createBlock pattern) in quadrants
+  //   • Tree clusters NW park + SE forest
   // ════════════════════════════════════════════════════════
 
   const COLS = WORLD_W / TILE_SIZE;  // 50
   const ROWS = WORLD_H / TILE_SIZE;  // 50
   const S    = TILE_SIZE;
+
+  // Track occupied/road tiles
+  const roadSet = new Set();
+  const occupied = new Set();
+
+  // ── HELPER: draw a horizontal road line ──
+  function drawRoadH(tx1, ty1, len) {
+    for (let i = 0; i < len; i++) {
+      drawRoadTile(ctx, (tx1 + i) * S, ty1 * S);
+      roadSet.add(`${tx1+i},${ty1}`);
+    }
+  }
+
+  // ── HELPER: draw a vertical road line ──
+  function drawRoadV(tx1, ty1, len) {
+    for (let i = 0; i < len; i++) {
+      drawRoadTile(ctx, tx1 * S, (ty1 + i) * S);
+      roadSet.add(`${tx1},${ty1+i}`);
+    }
+  }
 
   // ── 1. GRASS BASE ──
   for (let ty = 0; ty < ROWS; ty++) {
@@ -1641,102 +1667,93 @@ function createTextures(scene) {
     }
   }
 
-  // ── 2. ROAD GRID — every 8 tiles, horizontal + vertical ──
-  // Build a Set of road tile coords so buildings and trees can avoid them
-  const roadSet = new Set();
-  const ROAD_EVERY = 8;
-  for (let tx = 0; tx < COLS; tx++) {
-    for (let ty = 0; ty < ROWS; ty++) {
-      if (tx % ROAD_EVERY === 0 || ty % ROAD_EVERY === 0) {
-        drawRoadTile(ctx, tx * S, ty * S);
-        roadSet.add(`${tx},${ty}`);
-      }
-    }
-  }
+  // ── 2. MAIN ROADS — single clean cross (reference doc: drawRoadH/V) ──
+  // Horizontal road at row 30, vertical at col 35
+  drawRoadH(0, 30, COLS);
+  drawRoadV(35, 0, ROWS);
+  // Double the roads (2 tiles wide for GBA feel)
+  drawRoadH(0, 31, COLS);
+  drawRoadV(36, 0, ROWS);
 
-  // ── 3. TOWN SQUARE — cobble at the central road intersection ──
-  // Centre intersection at tile 24,24 (nearest road-grid cross)
-  for (let ty = 21; ty <= 28; ty++) {
-    for (let tx = 21; tx <= 28; tx++) {
+  // ── 3. CENTER PLAZA — path tiles at intersection + cobble square ──
+  // Plaza: tiles 32–38 x 27–33 (reference doc pattern)
+  for (let ty = 27; ty <= 33; ty++) {
+    for (let tx = 32; tx <= 38; tx++) {
       drawCobbleTile(ctx, tx * S, ty * S);
       roadSet.add(`${tx},${ty}`);
     }
   }
+  // Plaza border
   ctx.strokeStyle = '#b09040'; ctx.lineWidth = 2;
-  ctx.strokeRect(21*S+1, 21*S+1, 8*S-2, 8*S-2);
-  // Fountain in centre
-  for (let ty = 23; ty <= 25; ty++) {
-    for (let tx = 23; tx <= 25; tx++) {
+  ctx.strokeRect(32*S+1, 27*S+1, 7*S-2, 7*S-2);
+  // Fountain in plaza centre
+  for (let ty = 29; ty <= 31; ty++) {
+    for (let tx = 34; tx <= 36; tx++) {
       drawWaterTile(ctx, tx * S, ty * S);
     }
   }
   ctx.strokeStyle = '#f0d890'; ctx.lineWidth = 2;
-  ctx.strokeRect(23*S, 23*S, 3*S, 3*S);
+  ctx.strokeRect(34*S, 29*S, 3*S, 3*S);
 
   // ── 4. BUILDINGS ──
-  // Building renderer (variant-aware) — defined inline here
+  // Compact inline drawBuilding (same renderer as before)
   function drawBuilding(ctx, tx, ty, tw, th, roofColor, wallColor, label, variant) {
     const px = tx * S, py = ty * S;
     const bw = tw * S, bh = th * S;
     const roofH = Math.floor(S * 1.8);
-
     // Wall
-    ctx.fillStyle = wallColor;
-    ctx.fillRect(px, py, bw, bh);
+    ctx.fillStyle = wallColor; ctx.fillRect(px, py, bw, bh);
     ctx.fillStyle = darkenHex(wallColor, 10);
-    for (let wy2 = py + roofH + 6; wy2 < py + bh - 4; wy2 += 7)
-      ctx.fillRect(px + 2, wy2, bw - 4, 1);
+    for (let wy2 = py+roofH+6; wy2 < py+bh-4; wy2 += 7) ctx.fillRect(px+2, wy2, bw-4, 1);
     ctx.fillStyle = darkenHex(wallColor, 18);
-    ctx.fillRect(px, py, 2, bh);
-    ctx.fillRect(px, py + bh - 2, bw, 2);
-    ctx.fillStyle = lightenHex(wallColor, 22);
-    ctx.fillRect(px + 2, py + roofH, bw - 4, 2);
-
+    ctx.fillRect(px, py, 2, bh); ctx.fillRect(px, py+bh-2, bw, 2);
+    ctx.fillStyle = lightenHex(wallColor, 22); ctx.fillRect(px+2, py+roofH, bw-4, 2);
     // Roof
-    if (variant === 'shop') {
+    if (variant === 'shop' || variant === 'townhall') {
       ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
       ctx.fillStyle = darkenHex(roofColor, 15);
-      for (let cx2 = px + 3; cx2 < px + bw - 3; cx2 += 8) ctx.fillRect(cx2, py, 4, 5);
-      const aw = py + roofH;
-      for (let i = 0; i < 4; i++) {
-        ctx.fillStyle = i % 2 === 0 ? roofColor : lightenHex(roofColor, 30);
-        ctx.fillRect(px + 4, aw + i * 3, bw - 8, 3);
+      for (let cx2 = px+3; cx2 < px+bw-3; cx2 += 8) ctx.fillRect(cx2, py, 4, 5);
+      if (variant === 'townhall') {
+        // Flag pole
+        ctx.fillStyle = '#808080'; ctx.fillRect(px+bw/2-1, py-12, 2, 14);
+        ctx.fillStyle = '#f8d030'; ctx.fillRect(px+bw/2+1, py-12, 8, 6);
       }
-      const signW = bw - 16;
-      ctx.fillStyle = darkenHex(roofColor, 5);
-      ctx.fillRect(px + 8, py + roofH + 14, signW, 12);
+      const aw = py+roofH;
+      for (let i = 0; i < 4; i++) {
+        ctx.fillStyle = i%2===0 ? roofColor : lightenHex(roofColor, 30);
+        ctx.fillRect(px+4, aw+i*3, bw-8, 3);
+      }
+      const signW = bw-16;
+      ctx.fillStyle = darkenHex(roofColor, 5); ctx.fillRect(px+8, py+roofH+14, signW, 12);
       ctx.strokeStyle = lightenHex(roofColor, 25); ctx.lineWidth = 1;
-      ctx.strokeRect(px + 8, py + roofH + 14, signW, 12);
+      ctx.strokeRect(px+8, py+roofH+14, signW, 12);
       ctx.fillStyle = '#f8f8f8';
       ctx.font = '6px "Press Start 2P", monospace'; ctx.textAlign = 'center';
-      ctx.fillText('SHOP', px + bw/2, py + roofH + 23);
+      ctx.fillText(variant === 'townhall' ? 'HALL' : 'SHOP', px+bw/2, py+roofH+23);
     } else {
       ctx.fillStyle = roofColor; ctx.fillRect(px, py, bw, roofH);
       ctx.fillStyle = darkenHex(roofColor, 12);
       for (let row = 0; row < roofH; row += 4) {
-        const off = (row / 4) % 2 === 0 ? 0 : 5;
-        for (let cx2 = px + off; cx2 < px + bw; cx2 += 10)
-          ctx.fillRect(cx2, py + row, 8, 3);
+        const off = (row/4)%2===0 ? 0 : 5;
+        for (let cx2 = px+off; cx2 < px+bw; cx2 += 10) ctx.fillRect(cx2, py+row, 8, 3);
       }
-      ctx.fillStyle = lightenHex(roofColor, 30); ctx.fillRect(px + 4, py, bw - 8, 2);
-      ctx.fillStyle = darkenHex(roofColor, 22); ctx.fillRect(px, py + roofH - 2, bw, 3);
-      // Chimney
-      const chX = px + bw - 18;
-      ctx.fillStyle = '#888070'; ctx.fillRect(chX, py - 8, 8, roofH + 2);
-      ctx.fillStyle = '#606050'; ctx.fillRect(chX - 1, py - 10, 10, 4);
+      ctx.fillStyle = lightenHex(roofColor, 30); ctx.fillRect(px+4, py, bw-8, 2);
+      ctx.fillStyle = darkenHex(roofColor, 22); ctx.fillRect(px, py+roofH-2, bw, 3);
+      const chX = px+bw-18;
+      ctx.fillStyle = '#888070'; ctx.fillRect(chX, py-8, 8, roofH+2);
+      ctx.fillStyle = '#606050'; ctx.fillRect(chX-1, py-10, 10, 4);
       ctx.fillStyle = 'rgba(200,200,200,0.45)';
       ctx.beginPath(); ctx.arc(chX+3, py-16, 4, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(chX+7, py-20, 3, 0, Math.PI*2); ctx.fill();
     }
-
     // Windows
-    const winY = py + roofH + 8;
-    if (variant === 'shop') {
-      const ww = bw - 24, wh = 22;
-      ctx.fillStyle = '#b8e8ff'; ctx.fillRect(px + 12, winY, ww, wh);
-      ctx.fillStyle = '#e8f8ff'; ctx.fillRect(px + 14, winY + 2, 6, wh - 4);
-      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px + 12, winY, ww, wh);
-      ctx.fillStyle = '#181018'; ctx.fillRect(px + 12 + ww/2 - 1, winY, 2, wh);
+    const winY = py+roofH+8;
+    if (variant === 'shop' || variant === 'townhall') {
+      const ww = bw-24, wh = 22;
+      ctx.fillStyle = '#b8e8ff'; ctx.fillRect(px+12, winY, ww, wh);
+      ctx.fillStyle = '#e8f8ff'; ctx.fillRect(px+14, winY+2, 6, wh-4);
+      ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px+12, winY, ww, wh);
+      ctx.fillStyle = '#181018'; ctx.fillRect(px+12+ww/2-1, winY, 2, wh);
     } else {
       const positions = tw >= 7 ? [px+8, px+bw/2-5, px+bw-22] : [px+8, px+bw-22];
       positions.forEach(wx2 => {
@@ -1748,157 +1765,98 @@ function createTextures(scene) {
         ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(wx2, winY, 12, 10);
       });
     }
-
     // Door
-    const doorW  = variant === 'shop' ? 16 : 12;
-    const doorH2 = variant === 'shop' ? 24 : 18;
-    const dx = px + Math.floor(bw/2) - Math.floor(doorW/2);
-    const dy = py + bh - doorH2;
+    const doorW  = (variant==='shop'||variant==='townhall') ? 16 : 12;
+    const doorH2 = (variant==='shop'||variant==='townhall') ? 24 : 18;
+    const dx = px+Math.floor(bw/2)-Math.floor(doorW/2), dy = py+bh-doorH2;
     ctx.fillStyle = darkenHex(wallColor, 20); ctx.fillRect(dx-2, dy-2, doorW+4, doorH2+2);
     ctx.fillStyle = '#c07030'; ctx.fillRect(dx, dy, doorW, doorH2);
     ctx.fillStyle = '#a05020';
-    ctx.fillRect(dx+2, dy+2, doorW-4, doorH2/2-3);
-    ctx.fillRect(dx+2, dy+doorH2/2+1, doorW-4, doorH2/2-3);
+    ctx.fillRect(dx+2, dy+2, doorW-4, doorH2/2-3); ctx.fillRect(dx+2, dy+doorH2/2+1, doorW-4, doorH2/2-3);
     ctx.fillStyle = '#804010'; ctx.fillRect(dx, dy, 2, doorH2);
     ctx.fillStyle = '#f8d030'; ctx.fillRect(dx+doorW-4, dy+Math.floor(doorH2*0.55), 3, 3);
     ctx.fillStyle = darkenHex(wallColor, 25); ctx.fillRect(dx-3, py+bh-2, doorW+6, 2);
-
-    // Outline
     ctx.strokeStyle = '#181018'; ctx.lineWidth = 1; ctx.strokeRect(px, py, bw, bh);
-
-    // Label
-    if (label && variant !== 'shop') {
-      const sw = label.length * 5 + 10;
-      ctx.fillStyle = darkenHex(roofColor, 8);
-      ctx.fillRect(px+bw/2-sw/2, py-10, sw, 10);
+    if (label && variant !== 'shop' && variant !== 'townhall') {
+      const sw = label.length*5+10;
+      ctx.fillStyle = darkenHex(roofColor, 8); ctx.fillRect(px+bw/2-sw/2, py-10, sw, 10);
       ctx.strokeStyle = lightenHex(roofColor, 20); ctx.lineWidth = 1;
       ctx.strokeRect(px+bw/2-sw/2, py-10, sw, 10);
       ctx.fillStyle = '#f8f8f8';
       ctx.font = '5px "Press Start 2P", monospace'; ctx.textAlign = 'center';
       ctx.fillText(label, px+bw/2, py-2);
     }
+    // Mark tiles as occupied
+    for (let oty = ty; oty < ty+th; oty++)
+      for (let otx = tx; otx < tx+tw; otx++) occupied.add(`${otx},${oty}`);
   }
 
-  // ── 4a. NAMED BUILDINGS (fixed, for interior system) ──
+  // ── 4a. NAMED BUILDINGS (fixed — for interior system) ──
   drawBuilding(ctx, 5,  5,  6, 5, '#e82020', '#f0e8c0', 'HOME',    'house_red');
   drawBuilding(ctx, 36, 5,  6, 5, '#2848c0', '#e8eaf8', 'HOUSE',   'house_blue');
   drawBuilding(ctx, 5,  36, 7, 5, '#c82018', '#f8e8d8', "ELDER'S", 'house_red');
   drawBuilding(ctx, 36, 36, 7, 5, '#289048', '#e8f8e8', 'SHOP',    'shop');
 
-  // Mark named building tiles as occupied
-  const occupied = new Set([
-    ...[[5,5],[6,5],[7,5],[8,5],[9,5],[10,5],[5,6],[6,6],[7,6],[8,6],[9,6],[10,6],[5,7],[6,7],[7,7],[8,7],[9,7],[10,7],[5,8],[6,8],[7,8],[8,8],[9,8],[10,8],[5,9],[6,9],[7,9],[8,9],[9,9],[10,9]],
-    ...[[36,5],[37,5],[38,5],[39,5],[40,5],[41,5],[36,6],[37,6],[38,6],[39,6],[40,6],[41,6],[36,7],[37,7],[38,7],[39,7],[40,7],[41,7],[36,8],[37,8],[38,8],[39,8],[40,8],[41,8],[36,9],[37,9],[38,9],[39,9],[40,9],[41,9]],
-    ...[[5,36],[6,36],[7,36],[8,36],[9,36],[10,36],[11,36],[5,37],[6,37],[7,37],[8,37],[9,37],[10,37],[11,37],[5,38],[6,38],[7,38],[8,38],[9,38],[10,38],[11,38],[5,39],[6,39],[7,39],[8,39],[9,39],[10,39],[11,39],[5,40],[6,40],[7,40],[8,40],[9,40],[10,40],[11,40]],
-    ...[[36,36],[37,36],[38,36],[39,36],[40,36],[41,36],[42,36],[36,37],[37,37],[38,37],[39,37],[40,37],[41,37],[42,37],[36,38],[37,38],[38,38],[39,38],[40,38],[41,38],[42,38],[36,39],[37,39],[38,39],[39,39],[40,39],[41,39],[42,39],[36,40],[37,40],[38,40],[39,40],[40,40],[41,40],[42,40]],
-  ].map(([x,y]) => `${x},${y}`));
+  // ── 4b. TOWNHALL — at plaza centre (reference doc: addBuilding(35,26,"townhall")) ──
+  drawBuilding(ctx, 34, 25, 5, 5, '#f8a030', '#f8f0e0', 'HALL', 'townhall');
 
-  // ── 4b. TOWN CENTRE — shops clustered at main cross intersection ──
-  // Mirrors the reference doc: addBuilding(28,23,"shop"), (32,23), (30,20)
-  // Our tile coords are halved (TILE_SIZE=16 not 32) so we scale proportionally.
-  // Town square is at tiles 21-28; shops sit just outside on the roads.
-  const townCentreShops = [
-    [19, 19], [27, 19], [19, 29], [27, 29],   // corner shops near square
-    [23, 18], [24, 18],                         // top-road shops
-    [23, 30], [24, 30],                         // bottom-road shops
-  ];
-  townCentreShops.forEach(([tx2, ty2]) => {
-    if (roadSet.has(`${tx2},${ty2}`)) return;
-    drawBuilding(ctx, tx2, ty2, 5, 4, '#289048', '#e8f8e8', '', 'shop');
-    occupied.add(`${tx2},${ty2}`);
+  // ── 4c. SHOP DISTRICT — flanking the plaza (reference doc: addBuilding(32,30) etc.) ──
+  const shopDistrict = [[31,32],[37,32],[31,27],[37,27]];
+  shopDistrict.forEach(([tx2,ty2]) => {
+    if (!roadSet.has(`${tx2},${ty2}`) && !occupied.has(`${tx2},${ty2}`))
+      drawBuilding(ctx, tx2, ty2, 5, 4, '#289048', '#e8f8e8', '', 'shop');
   });
 
-  // ── 4c. RESIDENTIAL ROWS — houses in bands left and right of centre ──
-  // Left residential: columns 10-18, rows 10-40 in steps of 6
-  // Right residential: columns 30-44, rows 10-40 in steps of 6
-  const residentialLeft  = [];
-  const residentialRight = [];
-  for (let ry = 10; ry < 40; ry += 6) {
-    for (let rx = 10; rx < 18; rx += 6) residentialLeft.push([rx, ry]);
-    for (let rx = 30; rx < 44; rx += 6) residentialRight.push([rx, ry]);
-  }
-  const residentialAll = [...residentialLeft, ...residentialRight];
-  let rSeed = 100;
-  const rngR = (n) => { let x = Math.sin(n * 91.3) * 43758.5; return x - Math.floor(x); };
-  residentialAll.forEach(([rx, ry]) => {
-    if (roadSet.has(`${rx},${ry}`)) return;
-    if (occupied.has(`${rx},${ry}`)) return;
-    rSeed++;
-    const r = rngR(rSeed);
-    const isBlue = r > 0.5;
-    drawBuilding(ctx, rx, ry, 5, 4,
-      isBlue ? '#2848c0' : '#e82020',
-      isBlue ? '#e8eaf8' : '#f0e8c0',
-      isBlue ? 'HOUSE' : 'HOME',
-      isBlue ? 'house_blue' : 'house_red'
-    );
-    occupied.add(`${rx},${ry}`);
-  });
-
-  // ── 4d. PROCEDURAL BUILDINGS — fill remaining grid slots ──
-  const rng = (seed) => { let x = Math.sin(seed) * 43758; return x - Math.floor(x); };
-  let bldgSeed = 1;
-  for (let ty2 = 2; ty2 < ROWS - 6; ty2++) {
-    for (let tx2 = 2; tx2 < COLS - 6; tx2++) {
-      if ((tx2 - 1) % 6 !== 0 || (ty2 - 1) % 6 !== 0) continue;
-      if (roadSet.has(`${tx2},${ty2}`)) continue;
-      if (occupied.has(`${tx2},${ty2}`)) continue;
-      if (tx2 < 14 && ty2 < 14) continue;
-      if (tx2 > 32 && ty2 < 14) continue;
-      if (tx2 < 14 && ty2 > 32) continue;
-      if (tx2 > 32 && ty2 > 32) continue;
-      bldgSeed++;
-      const r = rng(bldgSeed);
-      let variant, roofCol, wallCol, lbl;
-      if (r > 0.9) {
-        variant = 'shop'; roofCol = '#289048'; wallCol = '#e8f8e8'; lbl = '';
-      } else if (r > 0.6) {
-        variant = 'house_blue'; roofCol = '#2848c0'; wallCol = '#e8eaf8'; lbl = 'HOUSE';
-      } else {
-        variant = 'house_red'; roofCol = '#e82020'; wallCol = '#f0e8c0'; lbl = 'HOME';
+  // ── 4d. RESIDENTIAL BLOCKS — createBlock pattern (3×3, spacing=4) ──
+  // 4 blocks in quadrants: NW(10,10), SW(10,40), NE(45,10), SE(45,40)
+  const blockOrigins = [[10,10],[10,40],[45,10],[45,40]];
+  const blockVariants = ['house_red','house_blue','house_green'];
+  const rngB = (n) => { let x = Math.sin(n*47.3)*43758.5; return x-Math.floor(x); };
+  let bSeed = 0;
+  blockOrigins.forEach(([bx, by]) => {
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        bSeed++;
+        const wx = bx + col * 5;   // 5-tile spacing (4 gap + 1 building width rough)
+        const wy = by + row * 5;
+        if (roadSet.has(`${wx},${wy}`) || occupied.has(`${wx},${wy}`)) continue;
+        const vi = Math.floor(rngB(bSeed) * 3);
+        const v = blockVariants[vi];
+        const rc = v==='house_green' ? '#289048' : v==='house_blue' ? '#2848c0' : '#e82020';
+        const wc = v==='house_green' ? '#e8f8e0' : v==='house_blue' ? '#e8eaf8' : '#f0e8c0';
+        const lbl = v==='house_green' ? 'HOUSE' : v==='house_blue' ? 'HOUSE' : 'HOME';
+        drawBuilding(ctx, wx, wy, 4, 4, rc, wc, lbl, v);
       }
-      drawBuilding(ctx, tx2, ty2, 5, 4, roofCol, wallCol, lbl, variant);
+    }
+  });
+
+  // ── 5. TREE CLUSTERS — treeCluster pattern (cx, cy, count, radius) ──
+  const treeShadows = [];
+  const rng2 = (n) => { let x = Math.sin(n*127.1)*43758.5; return x-Math.floor(x); };
+
+  function treeCluster(cx, cy, count, radius) {
+    for (let i = 0; i < count; i++) {
+      // Seeded random within ±radius of centre
+      const dx2 = Math.floor((rng2(cx*100+cy*7+i*3+1)*2-1) * radius);
+      const dy2 = Math.floor((rng2(cx*100+cy*7+i*3+2)*2-1) * radius);
+      const tx3 = cx + dx2, ty3 = cy + dy2;
+      if (tx3 < 0 || ty3 < 0 || tx3 >= COLS || ty3 >= ROWS) continue;
+      if (roadSet.has(`${tx3},${ty3}`)) continue;
+      if (occupied.has(`${tx3},${ty3}`)) continue;
+      treeShadows.push([tx3, ty3]);
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(50,120,20,0.10)'; ctx.fillRect(tx3*S, ty3*S, S, S);
     }
   }
 
-  // ── 5. PARK (top-left) + FOREST (bottom-right) + random tree shadows ──
-  // Park: tiles 2-18, rows 2-14 — dense green area NW of town
-  // Forest: tiles 30-48, rows 32-48 — dense trees SE
-  // Random clusters elsewhere avoid roads and buildings.
-  const treeShadows = [];
-  const rng2 = (n) => { let x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
-
-  function addTreeShadow(tx3, ty3) {
-    if (roadSet.has(`${tx3},${ty3}`)) return;
-    if (occupied.has(`${tx3},${ty3}`)) return;
-    treeShadows.push([tx3, ty3]);
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    ctx.beginPath();
-    ctx.ellipse(tx3*S + S/2, ty3*S + S - 2, 6, 3, 0, 0, Math.PI*2);
-    ctx.fill();
-    // Slightly darker grass patch under tree
-    ctx.fillStyle = 'rgba(50,120,20,0.10)';
-    ctx.fillRect(tx3*S, ty3*S, S, S);
-  }
-
-  // Park area — top-left, 40 trees
-  for (let i = 0; i < 40; i++) {
-    const tx3 = 2  + Math.floor(rng2(i * 5 + 1) * 16);
-    const ty3 = 2  + Math.floor(rng2(i * 5 + 2) * 12);
-    addTreeShadow(tx3, ty3);
-  }
-  // Forest area — bottom-right, 60 trees
-  for (let i = 0; i < 60; i++) {
-    const tx3 = 30 + Math.floor(rng2(i * 7 + 10) * 18);
-    const ty3 = 32 + Math.floor(rng2(i * 7 + 11) * 16);
-    addTreeShadow(tx3, ty3);
-  }
-  // Scattered trees elsewhere — 60 random
-  for (let i = 0; i < 60; i++) {
-    const tx3 = Math.floor(rng2(i * 3 + 200) * COLS);
-    const ty3 = Math.floor(rng2(i * 3 + 201) * ROWS);
-    addTreeShadow(tx3, ty3);
-  }
+  // NW park cluster (reference doc: treeCluster(5,5,20))
+  treeCluster(5, 5, 30, 5);
+  // SE forest cluster (reference doc: treeCluster(60,50,25))
+  treeCluster(44, 44, 40, 5);
+  // Additional scattered clusters for fullness
+  treeCluster(5, 44, 20, 4);
+  treeCluster(44, 5, 20, 4);
 
   worldGfx.refresh();
   console.log('[createTextures] ✓ Road-grid town drawn (50×50 tiles, road every 8, procedural buildings)');
@@ -2113,44 +2071,21 @@ function spawnCityWorldObjects(scene) {
     gameState.worldObjects.push(door);
   });
 
-  // ── PROCEDURAL BUILDING COLLIDERS ──
-  // Same seeded RNG as createTextures — generates identical building positions.
-  // We only add collision/door zones here (canvas art was already drawn).
+  // ── DYNAMIC BUILDING COLLIDERS — matches createTextures layout exactly ──
   {
     const COLS = WORLD_W / T, ROWS = WORLD_H / T;
-    const ROAD_EVERY = 8;
+
+    // Road set: H row 30+31, V col 35+36
     const roadSet2 = new Set();
-    for (let tx = 0; tx < COLS; tx++)
-      for (let ty = 0; ty < ROWS; ty++)
-        if (tx % ROAD_EVERY === 0 || ty % ROAD_EVERY === 0) roadSet2.add(`${tx},${ty}`);
-    for (let ty = 21; ty <= 28; ty++)
-      for (let tx = 21; tx <= 28; tx++) roadSet2.add(`${tx},${ty}`);
+    for (let tx = 0; tx < COLS; tx++) { roadSet2.add(`${tx},30`); roadSet2.add(`${tx},31`); }
+    for (let ty = 0; ty < ROWS; ty++) { roadSet2.add(`35,${ty}`); roadSet2.add(`36,${ty}`); }
+    // Plaza
+    for (let ty = 27; ty <= 33; ty++) for (let tx = 32; tx <= 38; tx++) roadSet2.add(`${tx},${ty}`);
 
-    // ── TOWN CENTRE SHOP COLLIDERS ──
-    const townCentreShops2 = [[19,19],[27,19],[19,29],[27,29],[23,18],[24,18],[23,30],[24,30]];
-    townCentreShops2.forEach(([tx2, ty2]) => {
-      const px = tx2*T, py = ty2*T, bw = 5*T, bh = 4*T;
-      const collH = Math.round(bh*0.62);
-      const cb = scene.physics.add.staticImage(px+bw/2, py+collH/2, null).setVisible(false);
-      cb.setDisplaySize(bw-4, collH); cb.refreshBody();
-      gameState.worldObjects.push(cb); gameState.buildingGroup.add(cb);
-      const dz = gameState.doorGroup.create(px+bw/2, py+bh, null);
-      dz.setSize(32,20).setOrigin(0.5,0.5).setVisible(false).refreshBody();
-      dz.houseId='shop_se'; dz.houseLabel='SHOP'; dz.returnX=px+bw/2; dz.returnY=py+bh+28;
-      gameState.worldObjects.push(dz);
-    });
-
-    // ── RESIDENTIAL ROW COLLIDERS ──
-    const rngR2 = (n) => { let x = Math.sin(n*91.3)*43758.5; return x-Math.floor(x); };
-    let rSeed2 = 100;
-    for (let ry = 10; ry < 40; ry += 6) {
-      for (let rx = 10; rx < 18; rx += 6) { addResCollider(rx, ry); }
-      for (let rx = 30; rx < 44; rx += 6) { addResCollider(rx, ry); }
-    }
-    function addResCollider(rx, ry) {
-      rSeed2++;
-      if (roadSet2.has(`${rx},${ry}`)) return;
-      const px = rx*T, py = ry*T, bw = 5*T, bh = 4*T;
+    // Helper: add collision + isTop + door for any building
+    function addBldgCollider(tx2, ty2, tw, th, houseId, houseLabel) {
+      if (roadSet2.has(`${tx2},${ty2}`)) return;
+      const px = tx2*T, py = ty2*T, bw = tw*T, bh = th*T;
       const collH = Math.round(bh*0.62);
       const cb = scene.physics.add.staticImage(px+bw/2, py+collH/2, null).setVisible(false);
       cb.setDisplaySize(bw-4, collH); cb.refreshBody();
@@ -2158,57 +2093,36 @@ function spawnCityWorldObjects(scene) {
       const rm = scene.add.rectangle(px+bw/2, py, bw, 4, 0x000000, 0);
       rm.isTop=true; rm.setDepth(py+1000);
       gameState.worldObjects.push(rm); gameState._topObjects.push(rm);
-      const isBlue = rngR2(rSeed2) > 0.5;
       const dz = gameState.doorGroup.create(px+bw/2, py+bh, null);
-      dz.setSize(32,20).setOrigin(0.5,0.5).setVisible(false).refreshBody();
-      dz.houseId = isBlue ? 'house_ne' : 'house_nw';
-      dz.houseLabel = isBlue ? 'HOUSE' : 'HOME';
+      dz.setSize(36,24).setOrigin(0.5,0.5).setVisible(false).refreshBody();
+      dz.houseId=houseId; dz.houseLabel=houseLabel;
       dz.returnX=px+bw/2; dz.returnY=py+bh+28;
       gameState.worldObjects.push(dz);
     }
-    let pSeed = 1;
 
-    for (let ty2 = 2; ty2 < ROWS - 6; ty2++) {
-      for (let tx2 = 2; tx2 < COLS - 6; tx2++) {
-        if ((tx2 - 1) % 6 !== 0 || (ty2 - 1) % 6 !== 0) continue;
-        if (roadSet2.has(`${tx2},${ty2}`)) continue;
-        if (tx2 < 14 && ty2 < 14) continue;
-        if (tx2 > 32 && ty2 < 14) continue;
-        if (tx2 < 14 && ty2 > 32) continue;
-        if (tx2 > 32 && ty2 > 32) continue;
+    // ── TOWNHALL ──
+    addBldgCollider(34, 25, 5, 5, 'shop_se', 'TOWN HALL');
 
-        pSeed++;
-        const rngP = (seed) => { let x = Math.sin(seed) * 43758; return x - Math.floor(x); };
-        const r = rngP(pSeed);
-        const variant = r > 0.9 ? 'shop' : r > 0.6 ? 'house_blue' : 'house_red';
-        const tw = 5, th = 4;
-        const px = tx2 * T, py = ty2 * T;
-        const bw = tw * T, bh = th * T;
+    // ── SHOP DISTRICT ──
+    [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) =>
+      addBldgCollider(tx2, ty2, 5, 4, 'shop_se', 'SHOP'));
 
-        // Collision (upper 62%)
-        const collH = Math.round(bh * 0.62);
-        const cBody = scene.physics.add.staticImage(px + bw/2, py + collH/2, null).setVisible(false);
-        cBody.setDisplaySize(bw - 4, collH);
-        cBody.refreshBody();
-        gameState.worldObjects.push(cBody);
-        gameState.buildingGroup.add(cBody);
-
-        // isTop roof marker
-        const rm = scene.add.rectangle(px + bw/2, py, bw, 4, 0x000000, 0);
-        rm.isTop = true; rm.setDepth(py + 1000);
-        gameState.worldObjects.push(rm);
-        gameState._topObjects.push(rm);
-
-        // Door zone
-        const dz = gameState.doorGroup.create(px + bw/2, py + bh, null);
-        dz.setSize(32, 20).setOrigin(0.5, 0.5).setVisible(false).refreshBody();
-        dz.houseId    = `proc_${tx2}_${ty2}`;
-        dz.houseLabel = variant === 'shop' ? 'SHOP' : 'HOUSE';
-        dz.returnX    = px + bw/2;
-        dz.returnY    = py + bh + 28;
-        gameState.worldObjects.push(dz);
+    // ── RESIDENTIAL BLOCKS (createBlock: 3×3, spacing=5) ──
+    const rngB2 = (n) => { let x = Math.sin(n*47.3)*43758.5; return x-Math.floor(x); };
+    let bSeed2 = 0;
+    [[10,10],[10,40],[45,10],[45,40]].forEach(([bx, by]) => {
+      for (let row = 0; row < 3; row++) {
+        for (let col = 0; col < 3; col++) {
+          bSeed2++;
+          const wx = bx + col*5, wy = by + row*5;
+          if (roadSet2.has(`${wx},${wy}`)) continue;
+          const vi = Math.floor(rngB2(bSeed2)*3);
+          const v = ['house_red','house_blue','house_green'][vi];
+          const hId = v==='house_blue' ? 'house_ne' : v==='house_green' ? 'house_sw' : 'house_nw';
+          addBldgCollider(wx, wy, 4, 4, hId, v==='house_red'?'HOME':'HOUSE');
+        }
       }
-    }
+    });
   }
 
   // ════════════════════════════════════════════════
