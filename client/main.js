@@ -445,41 +445,32 @@ function drawMinimap() {
   ctx.fillRect(40*scale, 3*scale, 9*scale, 8*scale);  // NE cluster
   ctx.fillRect(2*scale, 34*scale, 8*scale, 8*scale);  // SW cluster
 
-  // ── MAIN ROADS — H at rows 30–31, V at cols 35–36 ──
+  // ── ROADS — V at cols 30–31, H side path at row 25–26 (cols 10–31) ──
   ctx.fillStyle = '#e0c878';
-  ctx.fillRect(0, 30*scale, 100, 2*scale);  // horizontal
-  ctx.fillRect(35*scale, 0, 2*scale, 100);  // vertical
+  ctx.fillRect(30*scale, 0, 2*scale, 100);           // main vertical road
+  ctx.fillRect(10*scale, 25*scale, 22*scale, 2*scale); // side path
 
-  // ── TOWN PLAZA — cobble rows 27–33, cols 32–38 ──
+  // ── TOWN PLAZA — cobble rows 23–27, cols 28–33 ──
   ctx.fillStyle = '#c8b860';
-  ctx.fillRect(32*scale, 27*scale, 7*scale, 7*scale);
+  ctx.fillRect(28*scale, 23*scale, 6*scale, 5*scale);
   // Fountain
   ctx.fillStyle = '#3898f8';
-  ctx.fillRect(34*scale, 29*scale, 3*scale, 3*scale);
+  ctx.fillRect(29*scale, 24*scale, 3*scale, 2*scale);
 
   // ── NAMED BUILDINGS ──
-  ctx.fillStyle = '#e82020'; ctx.fillRect(5*scale, 5*scale, 6*scale, 5*scale);   // house_nw (red)
-  ctx.fillStyle = '#2848c0'; ctx.fillRect(36*scale, 5*scale, 6*scale, 5*scale);  // house_ne (blue)
-  ctx.fillStyle = '#c82018'; ctx.fillRect(5*scale, 36*scale, 7*scale, 5*scale);  // house_sw (red)
-  ctx.fillStyle = '#289048'; ctx.fillRect(36*scale,36*scale, 7*scale, 5*scale);  // shop_se (green)
-  // Townhall (gold)
-  ctx.fillStyle = '#f8a030'; ctx.fillRect(34*scale,25*scale, 5*scale, 5*scale);
-  // Shop district
-  ctx.fillStyle = '#289048';
-  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx,ty]) =>
-    ctx.fillRect(tx*scale, ty*scale, 5*scale, 4*scale));
-
-  // ── RESIDENTIAL BLOCKS — 4 quadrants ──
+  ctx.fillStyle = '#e82020'; ctx.fillRect(5*scale, 5*scale, 6*scale, 5*scale);
+  ctx.fillStyle = '#2848c0'; ctx.fillRect(36*scale, 5*scale, 6*scale, 5*scale);
+  ctx.fillStyle = '#c82018'; ctx.fillRect(5*scale, 36*scale, 7*scale, 5*scale);
+  ctx.fillStyle = '#289048'; ctx.fillRect(36*scale, 36*scale, 7*scale, 5*scale);
+  // Town centre buildings (green pair + blue shop)
+  ctx.fillStyle = '#289048'; ctx.fillRect(28*scale, 24*scale, 4*scale, 4*scale);
+  ctx.fillStyle = '#289048'; ctx.fillRect(32*scale, 24*scale, 4*scale, 4*scale);
+  ctx.fillStyle = '#2848c0'; ctx.fillRect(34*scale, 28*scale, 4*scale, 4*scale);
+  // House positions (reference doc array)
   ctx.fillStyle = '#f0e8c0';
-  [[10,10],[10,40],[45,10],[45,40]].forEach(([bx,by]) => {
-    for (let r = 0; r < 3; r++)
-      for (let c = 0; c < 3; c++)
-        ctx.fillRect((bx+c*5)*scale, (by+r*5)*scale, 4*scale, 4*scale);
-  });
-  // Explicit house positions row
   const housePositionsMM = [
-    [10,12],[16,12],[22,12],[28,12],[40,12],[46,12],
-    [10,34],[16,34],[22,34],[28,34],[40,34],[46,34],
+    [12,10],[18,12],[22, 9],[14,30],[20,34],[24,28],
+    [40,12],[45,15],[46,10],[42,35],[48,38],[44,30],
   ];
   housePositionsMM.forEach(([tx,ty]) =>
     ctx.fillRect(tx*scale, ty*scale, 4*scale, 4*scale));
@@ -1759,97 +1750,84 @@ function createTextures(scene) {
     }
   }
 
-  // ── 2. MAIN ROADS — single clean cross (reference doc: drawRoadH/V) ──
-  // Horizontal road at row 30, vertical at col 35
-  drawRoadH(0, 30, COLS);
-  drawRoadV(35, 0, ROWS);
-  // Double the roads (2 tiles wide for GBA feel)
-  drawRoadH(0, 31, COLS);
-  drawRoadV(36, 0, ROWS);
+  // ── 2. ROADS — main vertical + side path (reference doc pattern) ──
+  // Main road: vertical at col 30 (full height)
+  drawRoadV(30, 0, ROWS);
+  drawRoadV(31, 0, ROWS);  // 2 tiles wide
+  // Side path: horizontal at row 25, col 10–30 (connects west side to main road)
+  drawRoadH(10, 25, 22);
+  drawRoadH(10, 26, 22);  // 2 tiles wide
 
-  // ── 3. CENTER PLAZA — path tiles at intersection + cobble square ──
-  // Plaza: tiles 32–38 x 27–33 (reference doc pattern)
-  for (let ty = 27; ty <= 33; ty++) {
-    for (let tx = 32; tx <= 38; tx++) {
+  // ── 3. CENTER PLAZA — cobble at main road + side path intersection ──
+  // Plaza: tiles 28–33 × 23–27 (where side road meets main road)
+  for (let ty = 23; ty <= 27; ty++) {
+    for (let tx = 28; tx <= 33; tx++) {
       drawCobbleTile(ctx, tx * S, ty * S);
       roadSet.add(`${tx},${ty}`);
     }
   }
-  // Plaza border
   ctx.strokeStyle = '#b09040'; ctx.lineWidth = 2;
-  ctx.strokeRect(32*S+1, 27*S+1, 7*S-2, 7*S-2);
+  ctx.strokeRect(28*S+1, 23*S+1, 6*S-2, 5*S-2);
   // Fountain in plaza centre
-  for (let ty = 29; ty <= 31; ty++) {
-    for (let tx = 34; tx <= 36; tx++) {
+  for (let ty = 24; ty <= 25; ty++) {
+    for (let tx = 29; tx <= 31; tx++) {
       drawWaterTile(ctx, tx * S, ty * S);
     }
   }
   ctx.strokeStyle = '#f0d890'; ctx.lineWidth = 2;
-  ctx.strokeRect(34*S, 29*S, 3*S, 3*S);
+  ctx.strokeRect(29*S, 24*S, 3*S, 2*S);
 
   // ── 4. BUILDINGS ──
-  // Building art is rendered as real Phaser image objects in spawnCityWorldObjects().
+  // All building art is rendered as real Phaser image objects in spawnCityWorldObjects().
   // We only mark occupied tiles here so trees don't spawn on building footprints.
-  // (occupied Set was declared above with roadSet)
   const markOcc = (tx, ty, tw, th) => {
     for (let r = 0; r < th; r++) for (let c = 0; c < tw; c++) occupied.add(`${tx+c},${ty+r}`);
   };
+
+  // Named buildings (interior system)
   markOcc(5,5,6,5); markOcc(36,5,6,5); markOcc(5,36,7,5); markOcc(36,36,7,5);
-  markOcc(34,25,5,5);  // townhall
-  [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) => markOcc(tx2,ty2,5,4));
 
-  // ── 4d. HOUSES — explicit positions array (reference doc pattern) ──
-  // Three types: red / blue / green, placed at clean fixed coordinates.
-  // Mirrors: const positions = [[10,12],[16,12],[22,12],...]; positions.forEach(...)
+  // Town centre buildings — house_green pair at plaza entrance (ref: addBuilding(28,24) + (32,24))
+  markOcc(28,24,4,4); markOcc(32,24,4,4);
+
+  // Shop at ref: addBuilding(34,28,"house_blue")
+  markOcc(34,28,4,4);
+
+  // Explicit house positions — matches reference doc positions array exactly
   const housePositions = [
-    // North row — above main road
-    [10, 12, 'house_red' ], [16, 12, 'house_blue' ], [22, 12, 'house_green'],
-    [28, 12, 'house_red' ], [40, 12, 'house_blue' ], [46, 12, 'house_green'],
-    // South row — below main road
-    [10, 34, 'house_blue'], [16, 34, 'house_red'  ], [22, 34, 'house_green'],
-    [28, 34, 'house_blue'], [40, 34, 'house_green'], [46, 34, 'house_red'  ],
+    [12,10,'house_red' ], [18,12,'house_blue' ], [22, 9,'house_green'],
+    [14,30,'house_blue'], [20,34,'house_red'  ], [24,28,'house_green'],
+    [40,12,'house_blue'], [45,15,'house_red'  ], [46,10,'house_green'],
+    [42,35,'house_red' ], [48,38,'house_blue' ], [44,30,'house_green'],
   ];
-  housePositions.forEach(([tx2, ty2]) => {
-    markOcc(tx2, ty2, 4, 4);   // mark tiles occupied so trees don't spawn here
-  });
+  housePositions.forEach(([tx2, ty2]) => markOcc(tx2, ty2, 4, 4));
 
-  // ── 5. TREES — zone-based placement (reference doc pattern) ──
-  // Left zone:  x 2–8,  y 2–10  (20 trees in the NW park)
-  // Right zone: x 35–45, y 25–35 (20 trees in the SE forest)
-  // Each zone mirrors: for(i<20) addTree(Between(x1,x2), Between(y1,y2))
+  // ── 5. TREES — addTreeCluster pattern (cx, cy, count=10, radius=3) ──
+  // Mirrors: this.addTreeCluster(8,8); this.addTreeCluster(50,40); this.addTreeCluster(20,40)
   const treeShadows = [];
   const rng2 = (n) => { let x = Math.sin(n*127.1)*43758.5; return x-Math.floor(x); };
 
-  function addZoneTree(tx3, ty3) {
-    if (tx3 < 0 || ty3 < 0 || tx3 >= COLS || ty3 >= ROWS) return;
-    if (roadSet.has(`${tx3},${ty3}`)) return;
-    if (occupied.has(`${tx3},${ty3}`)) return;
-    treeShadows.push([tx3, ty3]);
-    ctx.fillStyle = 'rgba(0,0,0,0.16)';
-    ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = 'rgba(50,120,20,0.10)'; ctx.fillRect(tx3*S, ty3*S, S, S);
+  function addTreeCluster(cx, cy, count) {
+    for (let i = 0; i < (count || 10); i++) {
+      // Scatter ±3 tiles around centre (mirrors Phaser.Math.Between(-3,3))
+      const dx2 = Math.floor((rng2(cx*31+cy*7+i*3+1) * 2 - 1) * 3.5);
+      const dy2 = Math.floor((rng2(cx*31+cy*7+i*3+2) * 2 - 1) * 3.5);
+      const tx3 = cx + dx2, ty3 = cy + dy2;
+      if (tx3 < 0 || ty3 < 0 || tx3 >= COLS || ty3 >= ROWS) continue;
+      if (roadSet.has(`${tx3},${ty3}`) || occupied.has(`${tx3},${ty3}`)) continue;
+      treeShadows.push([tx3, ty3]);
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(50,120,20,0.12)'; ctx.fillRect(tx3*S, ty3*S, S, S);
+    }
   }
 
-  // Left zone (NW park) — x:2–8, y:2–10, 20 trees
-  for (let i = 0; i < 20; i++) {
-    const tx3 = 2  + Math.floor(rng2(i*5+1) * 7);   // 2..8
-    const ty3 = 2  + Math.floor(rng2(i*5+2) * 9);   // 2..10
-    addZoneTree(tx3, ty3);
-  }
-  // Right zone (SE forest) — x:35–45, y:25–35, 20 trees
-  for (let i = 0; i < 20; i++) {
-    const tx3 = 35 + Math.floor(rng2(i*5+3) * 11);  // 35..45
-    const ty3 = 25 + Math.floor(rng2(i*5+4) * 11);  // 25..35
-    addZoneTree(tx3, ty3);
-  }
-  // Extra NE corner cluster
-  for (let i = 0; i < 12; i++) {
-    addZoneTree(40 + Math.floor(rng2(i*3+50)*9), 3 + Math.floor(rng2(i*3+51)*8));
-  }
-  // Extra SW corner cluster
-  for (let i = 0; i < 12; i++) {
-    addZoneTree(2 + Math.floor(rng2(i*3+60)*8), 34 + Math.floor(rng2(i*3+61)*8));
-  }
+  // Three named clusters — matches reference doc exactly
+  addTreeCluster(8,  8,  12);  // NW park cluster
+  addTreeCluster(50, 40, 15);  // SE forest cluster
+  addTreeCluster(20, 40, 12);  // SW forest cluster
+  // Extra density — east side wilderness
+  addTreeCluster(48, 10, 10);
 
   worldGfx.refresh();
   console.log('[createTextures] ✓ Road-grid town drawn (50×50 tiles, road every 8, procedural buildings)');
@@ -2191,12 +2169,12 @@ function spawnCityWorldObjects(scene) {
   {
     const COLS = WORLD_W / T, ROWS = WORLD_H / T;
 
-    // Road set: H row 30+31, V col 35+36
+    // Road set: V col 30+31, H row 25+26 (side path cols 10-31)
     const roadSet2 = new Set();
-    for (let tx = 0; tx < COLS; tx++) { roadSet2.add(`${tx},30`); roadSet2.add(`${tx},31`); }
-    for (let ty = 0; ty < ROWS; ty++) { roadSet2.add(`35,${ty}`); roadSet2.add(`36,${ty}`); }
+    for (let ty = 0; ty < ROWS; ty++) { roadSet2.add(`30,${ty}`); roadSet2.add(`31,${ty}`); }
+    for (let tx = 10; tx <= 31; tx++) { roadSet2.add(`${tx},25`); roadSet2.add(`${tx},26`); }
     // Plaza
-    for (let ty = 27; ty <= 33; ty++) for (let tx = 32; tx <= 38; tx++) roadSet2.add(`${tx},${ty}`);
+    for (let ty = 23; ty <= 27; ty++) for (let tx = 28; tx <= 33; tx++) roadSet2.add(`${tx},${ty}`);
 
     // Helper: add visible image + collision + isTop roof + door for any building
     function addBldgCollider(tx2, ty2, tw, th, houseId, houseLabel, texKey) {
@@ -2208,13 +2186,14 @@ function spawnCityWorldObjects(scene) {
       const bi = scene.add.image(px, py, key).setOrigin(0,0).setDisplaySize(bw, bh).setDepth(py+bh);
       gameState.worldObjects.push(bi);
 
-      // Roof image — isTop
-      const ri = scene.add.image(px, py, key).setOrigin(0,0).setDisplaySize(bw, Math.round(bh*0.4))
-        .setCrop(0,0,64,Math.round(64*0.4));
+      // Roof image — isTop, always above player
+      const ri = scene.add.image(px, py, key).setOrigin(0,0)
+        .setDisplaySize(bw, Math.round(bh*0.4))
+        .setCrop(0, 0, 64, Math.round(64*0.4));
       ri.isTop=true; ri.setDepth(py+1000);
       gameState.worldObjects.push(ri); gameState._topObjects.push(ri);
 
-      // Collision
+      // Collision (upper 62%)
       const collH = Math.round(bh*0.62);
       const cb = scene.physics.add.staticImage(px+bw/2, py+collH/2, null).setVisible(false);
       cb.setDisplaySize(bw-4, collH); cb.refreshBody();
@@ -2228,42 +2207,21 @@ function spawnCityWorldObjects(scene) {
       gameState.worldObjects.push(dz);
     }
 
-    // ── HOUSE POSITIONS (explicit array — matches createTextures housePositions) ──
+    // ── TOWN CENTRE BUILDINGS — house_green pair + shop (ref: addBuilding) ──
+    addBldgCollider(28, 24, 4, 4, 'house_nw',  'PLAZA',  'house_green');
+    addBldgCollider(32, 24, 4, 4, 'house_ne',  'CENTRE', 'house_green');
+    addBldgCollider(34, 28, 4, 4, 'shop_se',   'SHOP',   'house_blue');
+
+    // ── HOUSE POSITIONS — matches reference doc positions array ──
     const housePositions2 = [
-      [10,12,'house_red'],[16,12,'house_blue'],[22,12,'house_green'],
-      [28,12,'house_red'],[40,12,'house_blue'],[46,12,'house_green'],
-      [10,34,'house_blue'],[16,34,'house_red'],[22,34,'house_green'],
-      [28,34,'house_blue'],[40,34,'house_green'],[46,34,'house_red'],
+      [12,10,'house_red' ], [18,12,'house_blue' ], [22, 9,'house_green'],
+      [14,30,'house_blue'], [20,34,'house_red'  ], [24,28,'house_green'],
+      [40,12,'house_blue'], [45,15,'house_red'  ], [46,10,'house_green'],
+      [42,35,'house_red' ], [48,38,'house_blue' ], [44,30,'house_green'],
     ];
     housePositions2.forEach(([tx2,ty2,type]) => {
-      if (!roadSet2.has(`${tx2},${ty2}`))
-        addBldgCollider(tx2, ty2, 4, 4,
-          type==='house_blue'?'house_ne':'house_nw',
-          type==='house_red'?'HOME':'HOUSE', type);
-    });
-
-    // ── TOWNHALL ──
-    addBldgCollider(34, 25, 5, 5, 'shop_se', 'TOWN HALL', 'townhall_tex');
-
-    // ── SHOP DISTRICT ──
-    [[31,32],[37,32],[31,27],[37,27]].forEach(([tx2,ty2]) =>
-      addBldgCollider(tx2, ty2, 5, 4, 'shop_se', 'SHOP', 'shop_tex'));
-
-    // ── RESIDENTIAL BLOCKS (createBlock: 3×3, spacing=5) ──
-    const rngB2 = (n) => { let x = Math.sin(n*47.3)*43758.5; return x-Math.floor(x); };
-    let bSeed2 = 0;
-    [[10,10],[10,40],[45,10],[45,40]].forEach(([bx, by]) => {
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          bSeed2++;
-          const wx = bx + col*5, wy = by + row*5;
-          if (roadSet2.has(`${wx},${wy}`)) continue;
-          const vi = Math.floor(rngB2(bSeed2)*3);
-          const v = ['house_red','house_blue','house_green'][vi];
-          const hId = v==='house_blue' ? 'house_ne' : v==='house_green' ? 'house_sw' : 'house_nw';
-          addBldgCollider(wx, wy, 4, 4, hId, v==='house_red'?'HOME':'HOUSE', v);
-        }
-      }
+      const hId = type==='house_blue' ? 'house_ne' : type==='house_green' ? 'house_sw' : 'house_nw';
+      addBldgCollider(tx2, ty2, 4, 4, hId, type==='house_red'?'HOME':'HOUSE', type);
     });
   }
 
@@ -2279,15 +2237,12 @@ function spawnCityWorldObjects(scene) {
   // townhall: tiles 34-38,25-29 → label above at (36*T, 25*T)
   // plaza:    tiles 32-38,27-33 → label at centre (35*T, 27*T)
   const WORLD_LABELS = [
-    [8*T,    5*T,  'HOME',      '#f8d030', null              ],
-    [39*T,   5*T,  'HOUSE',     '#3878f8', null              ],
-    [8*T,   36*T,  "ELDER'S",   '#f8a030', null              ],
-    [39*T,  36*T,  'SHOP',      '#78c850', 'Buy · Sell'      ],
-    [35*T,  25*T,  'TOWN HALL', '#f8d030', 'Vote · Govern'   ],
-    [35*T,  27*T,  'PLAZA',     '#f8f8f8', 'Events · Gossip' ],
-    // Explicit house row labels (north + south streets)
-    [19*T,  12*T,  'NORTH ST',  '#c0c8d0', null              ],
-    [19*T,  34*T,  'SOUTH ST',  '#c0c8d0', null              ],
+    [8*T,   5*T,  'HOME',      '#f8d030', null           ],
+    [39*T,  5*T,  'HOUSE',     '#3878f8', null           ],
+    [8*T,  36*T,  "ELDER'S",   '#f8a030', null           ],
+    [39*T, 36*T,  'SHOP',      '#78c850', 'Buy · Sell'   ],
+    [30*T, 23*T,  'TOWN CTR',  '#f8d030', 'Plaza · Meet' ],
+    [20*T, 24*T,  'MAIN ST',   '#c0c8d0', null           ],
   ];
   for (const [wx, wy, text, color, sub] of WORLD_LABELS) {
     const t = scene.add.text(wx, wy, text, {
@@ -2311,9 +2266,9 @@ function spawnCityWorldObjects(scene) {
   // Shop_se centre: tile ~39,38 = px (624, 608)
   // Townhall centre: tile ~36,27 = px (576, 432)
   const ZONE_MARKERS = [
-    [35*T, 30*T, 28, 0xf8d030, 'SQUARE'],   // plaza
-    [39*T, 38*T, 24, 0x78c850, 'SHOP'  ],   // shop district
-    [36*T, 27*T, 22, 0xf8a030, 'HALL'  ],   // townhall
+    [30*T, 25*T, 26, 0xf8d030, 'PLAZA' ],  // plaza at col30,row25 intersection
+    [39*T, 38*T, 24, 0x78c850, 'SHOP'  ],  // shop_se
+    [34*T, 28*T, 20, 0x78c8f8, 'CENTRE'],  // town centre buildings
   ];
   const mgfx = _addWorldGfx(scene, 2);
   for (const [cx, cy, r, col, lbl] of ZONE_MARKERS) {
@@ -3174,8 +3129,8 @@ class GameScene extends Phaser.Scene {
 
     // ── 1. Check proximity-zone markers first (Town Hall, Market, Transit) ──
     const ZONE_TRIGGERS = [
-      { cx: 36*T, cy: 27*T, r: 48, action: 'vote',   label: 'Town Hall'   },  // townhall: tile 36,27
-      { cx: 39*T, cy: 38*T, r: 44, action: 'trade',  label: 'Market'      },  // shop_se: tile 39,38
+      { cx: 30*T, cy: 25*T, r: 48, action: 'vote',   label: 'Town Centre' },  // plaza
+      { cx: 39*T, cy: 38*T, r: 44, action: 'trade',  label: 'Market'      },  // shop_se
       { cx: 752,  cy: 430,  r: 50, action: 'travel',  label: 'Transit Hub' },  // east edge portal
     ];
     for (const zone of ZONE_TRIGGERS) {
