@@ -94,7 +94,7 @@ const gameState = {
   npcs: [],
   npcSprites: {},
   mySprite: null,
-  myX: 300, myY: 300,
+  myX: 480, myY: 450,  // start near plaza intersection (col 30 × row 28 in 16px tiles)
   activeNpcId: null,
   dialogueOpen: false,
   scene: null,
@@ -1649,24 +1649,26 @@ function buildMapData() {
   // Fill with grass (0)
   const data = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
 
-  // Roads: H at rows 30+31, V at cols 35+36
-  for (let tx = 0; tx < COLS; tx++) {
-    data[30][tx] = 1; data[31][tx] = 1;
-  }
-  for (let ty = 0; ty < ROWS; ty++) {
-    data[ty][35] = 1; data[ty][36] = 1;
-  }
+  // ── MAIN ROADS (matches createTextures roads[] array) ──
+  // Main H at row 25
+  for (let tx = 0; tx < COLS; tx++) data[25][tx] = 1;
+  // Main V at col 30
+  for (let ty = 0; ty < ROWS; ty++) data[ty][30] = 1;
+  // Side streets H at rows 15 and 35 (cols 10–49)
+  for (let tx = 10; tx < 50; tx++) { data[15][tx] = 1; data[35][tx] = 1; }
+  // Side streets V at cols 15 and 45 (rows 10–39)
+  for (let ty = 10; ty < 40; ty++) { data[ty][15] = 1; data[ty][45] = 1; }
 
-  // Plaza: cobble at rows 27–33, cols 32–38
-  for (let ty = 27; ty <= 33; ty++) {
-    for (let tx = 32; tx <= 38; tx++) {
+  // ── CENTER PLAZA — cobble at rows 23–27, cols 28–33 ──
+  for (let ty = 23; ty <= 27; ty++) {
+    for (let tx = 28; tx <= 33; tx++) {
       data[ty][tx] = 2;
     }
   }
 
-  // Fountain: water at rows 29–31, cols 34–36
-  for (let ty = 29; ty <= 31; ty++) {
-    for (let tx = 34; tx <= 36; tx++) {
+  // ── FOUNTAIN — water at rows 24–25, cols 29–31 ──
+  for (let ty = 24; ty <= 25; ty++) {
+    for (let tx = 29; tx <= 31; tx++) {
       data[ty][tx] = 3;
     }
   }
@@ -1727,21 +1729,7 @@ function createTextures(scene) {
   const roadSet = new Set();
   const occupied = new Set();
 
-  // ── HELPER: draw a horizontal road line ──
-  function drawRoadH(tx1, ty1, len) {
-    for (let i = 0; i < len; i++) {
-      drawRoadTile(ctx, (tx1 + i) * S, ty1 * S);
-      roadSet.add(`${tx1+i},${ty1}`);
-    }
-  }
-
-  // ── HELPER: draw a vertical road line ──
-  function drawRoadV(tx1, ty1, len) {
-    for (let i = 0; i < len; i++) {
-      drawRoadTile(ctx, tx1 * S, (ty1 + i) * S);
-      roadSet.add(`${tx1},${ty1+i}`);
-    }
-  }
+  // (Roads are built via the roads[] array — no separate drawRoadH/V needed)
 
   // ── 1. GRASS BASE ──
   for (let ty = 0; ty < ROWS; ty++) {
@@ -2181,8 +2169,14 @@ function spawnCityWorldObjects(scene) {
     for (let ty = 23; ty <= 27; ty++) for (let tx = 28; tx <= 33; tx++) roadSet2.add(`${tx},${ty}`);
 
     const occupied2 = new Set();
-    // Named buildings
-    ['5,5','36,5','5,36','36,36'].forEach(k => occupied2.add(k));
+    // Mark named building footprints (tile coords) so road-side loop skips them
+    // house_nw: 5-10, 5-9 (6w×5h); house_ne: 36-41,5-9; house_sw: 5-11,36-40 (7w); shop_se: 36-42,36-40
+    const markOcc2 = (tx, ty, tw, th) => {
+      for (let r = 0; r < th+2; r++) for (let c = 0; c < tw+2; c++) occupied2.add(`${tx-1+c},${ty-1+r}`);
+    };
+    markOcc2(5,5,6,5); markOcc2(36,5,6,5); markOcc2(5,36,7,5); markOcc2(36,36,7,5);
+    // Centre buildings
+    markOcc2(28,22,4,4); markOcc2(32,24,4,4);
 
     // Helper — add visible image + collision + isTop + door
     const rngH2 = (n) => { let x = Math.sin(n*73.1)*43758.5; return x-Math.floor(x); };
@@ -2225,8 +2219,11 @@ function spawnCityWorldObjects(scene) {
       gameState.worldObjects.push(dz);
     }
 
-    // Centre buildings
+    // Centre buildings — placed explicitly then marked occupied before loops run
     addBldgCollider(28, 22); addBldgCollider(32, 24);
+    // (occupied2 already has these tiles from markOcc2 above, but addBldgCollider
+    //  runs first and marks them itself via the 4×4 loop — the markOcc2 above is
+    //  just a belt-and-suspenders guard for the named buildings)
 
     // Road-side houses — same intervals as createTextures placeHouseNearRoad
     for (let tx = 5; tx < 55; tx += 6) { addBldgCollider(tx, 22); addBldgCollider(tx, 28); }  // main H ±3
@@ -2894,6 +2891,9 @@ class GameScene extends Phaser.Scene {
     }).setDepth(11).setOrigin(0.5, 1);
     gameState.scene = this; // ensure scene ref is set before applyReputation is called
 
+    // NPC proximity glow — pulsing circle when player is in interact range
+    this._npcGlowGfx = this.add.graphics().setDepth(9);
+
     // Interact [E] prompt
     this.interactPrompt = this.add.text(0,0,'[E]',{
       fontSize: '7px', fontFamily:"'Press Start 2P'",
@@ -3012,8 +3012,8 @@ class GameScene extends Phaser.Scene {
     // Idle bob state
     this._bobTime = 0;
 
-    // ── ANIMATED FOUNTAIN ──
-    const FX = 24 * TILE_SIZE, FY = 24 * TILE_SIZE;
+    // ── ANIMATED FOUNTAIN — at plaza centre: cols 29-31, rows 24-25 → px (480, 400) ──
+    const FX = 30 * TILE_SIZE, FY = 25 * TILE_SIZE;  // col 30, row 25 = road intersection
     this._fountainGfx   = this.add.graphics().setDepth(FY + 1);
     this._fountainPhase = 0;
     this.time.addEvent({ delay:80, loop:true, callback:() => {
@@ -3283,7 +3283,9 @@ class GameScene extends Phaser.Scene {
       if (p.label) p.label.setPosition(p.sprite.x, p.sprite.y-14);
     }
 
-    // ── NPC WALK ANIMATION + Y-DEPTH SORTING ──
+    // ── NPC WALK ANIMATION + Y-DEPTH SORTING + PROXIMITY GLOW ──
+    this._npcGlowGfx.clear();
+    const glowPhase = (this.game.loop.totalElapsed / 600) % (Math.PI * 2);
     for (const npc of gameState.npcs) {
       const data = gameState.npcSprites[npc.id];
       if (!data) continue;
@@ -3291,6 +3293,22 @@ class GameScene extends Phaser.Scene {
 
       // Y-depth: NPC renders in front/behind player based on Y position
       sp2.setDepth(npc.y);
+
+      // Proximity glow — pulsing ring when player in interact range
+      const dist = Phaser.Math.Distance.Between(sp.x, sp.y, sp2.x, sp2.y);
+      if (dist < NPC_INTERACT_DIST && !gameState.dialogueOpen) {
+        const pulse = 0.35 + Math.sin(glowPhase) * 0.2;
+        const col   = npc.color ? parseInt(npc.color.replace('#',''), 16) : 0xf8d030;
+        this._npcGlowGfx.lineStyle(2, col, pulse);
+        this._npcGlowGfx.strokeCircle(sp2.x, sp2.y - 8, 18 + Math.sin(glowPhase) * 2);
+        // Small shadow ellipse under NPC
+        this._npcGlowGfx.fillStyle(0x000000, 0.15);
+        this._npcGlowGfx.fillEllipse(sp2.x, sp2.y + 2, 20, 6);
+      } else {
+        // Always draw subtle shadow even when not in range
+        this._npcGlowGfx.fillStyle(0x000000, 0.12);
+        this._npcGlowGfx.fillEllipse(sp2.x, sp2.y + 2, 18, 5);
+      }
 
       const vx = sp2.body ? Math.abs(sp2.body.velocity.x) : 0;
       const vy = sp2.body ? Math.abs(sp2.body.velocity.y) : 0;
@@ -3310,11 +3328,11 @@ class GameScene extends Phaser.Scene {
     // ── INTERACT PROMPT — context-aware label ──
     let nearbyNpc = null, nearZone = null;
 
-    // Check proximity zones first (Town Hall, Market, Transit Hub)
+    // Check proximity zones (must match ZONE_TRIGGERS positions)
     const UPDATE_ZONES = [
-      { cx: 312, cy: 96,  r: 50, zone: 'vote'   },
-      { cx: 624, cy: 608, r: 50, zone: 'trade'  },
-      { cx: 752, cy: 430, r: 55, zone: 'travel' },
+      { cx: 30*T, cy: 25*T, r: 50, zone: 'vote'   },  // plaza col30,row25
+      { cx: 39*T, cy: 38*T, r: 50, zone: 'trade'  },  // shop_se
+      { cx: 752,  cy: 430,  r: 55, zone: 'travel' },  // transit hub
     ];
     for (const z of UPDATE_ZONES) {
       if (Phaser.Math.Distance.Between(sp.x, sp.y, z.cx, z.cy) < z.r) { nearZone = z.zone; break; }
