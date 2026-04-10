@@ -1525,38 +1525,50 @@ document.getElementById('dialogue-input').addEventListener('keydown', (e) => {
 
 /** Bright GBA grass tile (3 tones, grass tufts) */
 function drawGrassTile(ctx, px, py) {
-  // Base fill
+  // Three-shade checkerboard base for depth
   for (let y = 0; y < 16; y++) {
     for (let x = 0; x < 16; x++) {
-      const v = (x * 3 + y * 5) % 7;
-      ctx.fillStyle = v < 3 ? '#68c040' : v < 5 ? '#80d858' : '#50a830';
+      const n = (x * 3 + y * 7 + x * y) % 9;
+      ctx.fillStyle = n < 4 ? '#68c040' : n < 7 ? '#78d048' : '#58b030';
       ctx.fillRect(px + x, py + y, 1, 1);
     }
   }
-  // Bright tuft accents
-  ctx.fillStyle = '#98f070';
-  [[2,1],[6,4],[12,2],[4,9],[10,7],[1,13],[14,11],[8,14],[11,5],[3,12]]
-    .forEach(([tx, ty]) => ctx.fillRect(px + tx, py + ty, 1, 2));
-  // Dark shadow roots
-  ctx.fillStyle = '#50a830';
-  [[2,3],[6,6],[12,4],[4,11],[10,9]].forEach(([tx,ty]) => ctx.fillRect(px+tx,py+ty,1,1));
+  // Bright highlight tufts (grass blades)
+  ctx.fillStyle = '#a0e860';
+  [[1,2],[5,0],[9,3],[13,1],[3,7],[7,5],[11,8],[15,6],[2,11],[6,13],[10,10],[14,12]]
+    .forEach(([x,y]) => ctx.fillRect(px+x, py+y, 1, 2));
+  // Mid tufts
+  ctx.fillStyle = '#90d850';
+  [[3,1],[8,4],[12,2],[5,9],[14,7],[1,14]]
+    .forEach(([x,y]) => ctx.fillRect(px+x, py+y, 1, 1));
+  // Dark roots/shadow
+  ctx.fillStyle = '#48a020';
+  [[1,4],[5,2],[9,5],[3,9],[7,7],[11,10]]
+    .forEach(([x,y]) => ctx.fillRect(px+x, py+y, 1, 1));
 }
 
 /** GBA-style sandy path tile */
 function drawRoadTile(ctx, px, py) {
+  // Warm sandy base
+  ctx.fillStyle = '#d8c070';
+  ctx.fillRect(px, py, 16, 16);
+  // Subtle grain variation
   for (let y = 0; y < 16; y++) {
     for (let x = 0; x < 16; x++) {
-      const v = (x * 2 + y * 3) % 5;
-      ctx.fillStyle = v < 2 ? '#e0c878' : v < 4 ? '#d0b860' : '#c8a850';
-      ctx.fillRect(px + x, py + y, 1, 1);
+      const n = (x * 5 + y * 3 + x) % 7;
+      if (n === 0) { ctx.fillStyle = '#c8b060'; ctx.fillRect(px+x, py+y, 1, 1); }
+      else if (n === 6) { ctx.fillStyle = '#e8d080'; ctx.fillRect(px+x, py+y, 1, 1); }
     }
   }
-  // Edge highlight (top)
-  ctx.fillStyle = '#f0d890';
-  for (let x = 0; x < 16; x++) ctx.fillRect(px + x, py, 1, 1);
-  // Edge shadow (bottom)
-  ctx.fillStyle = '#b09040';
-  for (let x = 0; x < 16; x++) ctx.fillRect(px + x, py + 15, 1, 1);
+  // Top highlight line
+  ctx.fillStyle = '#f0e090';
+  ctx.fillRect(px, py, 16, 1);
+  // Bottom shadow line
+  ctx.fillStyle = '#a89040';
+  ctx.fillRect(px, py+15, 16, 1);
+  // Tiny pebbles
+  ctx.fillStyle = '#b8a050';
+  [[4,4],[9,7],[13,3],[2,10],[7,12],[14,9]].forEach(([x,y]) => ctx.fillRect(px+x, py+y, 1, 1));
 }
 
 /** GBA cobblestone town square tile */
@@ -1801,21 +1813,12 @@ function createTextures(scene) {
     markOcc(tx, ty, 4, 4);
   }
 
-  // TOP SIDE of main H road (row 25), offset -3 (above road)
-  for (let tx = 5; tx < 55; tx += 6) placeHouseNearRoad(tx, 25, 0, -3);
-  // BOTTOM SIDE of main H road, offset +3 (below road)
-  for (let tx = 5; tx < 55; tx += 6) placeHouseNearRoad(tx, 25, 0,  3);
-  // LEFT SIDE of main V road (col 30), offset -3
-  for (let ty = 5; ty < 45; ty += 6) placeHouseNearRoad(30, ty, -3, 0);
-  // RIGHT SIDE of main V road, offset +3
-  for (let ty = 5; ty < 45; ty += 6) placeHouseNearRoad(30, ty,  3, 0);
-
-  // SIDE STREET houses — alongside H streets at rows 15 and 35
-  for (let tx = 10; tx < 50; tx += 6) placeHouseNearRoad(tx, 15, 0, -2);
-  for (let tx = 10; tx < 50; tx += 6) placeHouseNearRoad(tx, 35, 0,  2);
-  // SIDE STREET houses — alongside V streets at cols 15 and 45
-  for (let ty = 10; ty < 40; ty += 6) placeHouseNearRoad(15, ty, -2, 0);
-  for (let ty = 10; ty < 40; ty += 6) placeHouseNearRoad(45, ty,  2, 0);
+  // MAIN ROAD houses — every 10 tiles instead of 6, only top+bottom of main H road
+  for (let tx = 8; tx < 50; tx += 10) placeHouseNearRoad(tx, 25, 0, -4);
+  for (let tx = 8; tx < 50; tx += 10) placeHouseNearRoad(tx, 25, 0,  4);
+  // VERTICAL ROAD — left and right side, every 10 tiles
+  for (let ty = 8; ty < 42; ty += 10) placeHouseNearRoad(30, ty, -4, 0);
+  for (let ty = 8; ty < 42; ty += 10) placeHouseNearRoad(30, ty,  4, 0);
 
   // ── 5. TREES — edge-only placement (reference doc: x<5||x>55||y<5||y>45) ──
   const treeShadows = [];
@@ -1832,6 +1835,47 @@ function createTextures(scene) {
     ctx.beginPath(); ctx.ellipse(tx3*S+S/2, ty3*S+S-2, 6, 3, 0, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = 'rgba(50,120,20,0.12)'; ctx.fillRect(tx3*S, ty3*S, S, S);
   }
+
+  // ── VISUAL POLISH ──
+
+  // Dark grass border (2-tile deep vignette around map edge)
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  for (let tx3 = 0; tx3 < COLS; tx3++) {
+    for (let ty3 = 0; ty3 < ROWS; ty3++) {
+      const edge = Math.min(tx3, ty3, COLS-1-tx3, ROWS-1-ty3);
+      if (edge < 2) {
+        const alpha = edge === 0 ? 0.45 : 0.20;
+        ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+        ctx.fillRect(tx3*S, ty3*S, S, S);
+      }
+    }
+  }
+
+  // Road kerb lines — bright edge where grass meets road
+  ctx.fillStyle = '#f0e090';
+  for (let tx3 = 0; tx3 < COLS; tx3++) {
+    // H road top kerb (row 25) — bright line where grass ends above road
+    ctx.fillRect(tx3*S, 25*S, S, 1);
+    // H road bottom kerb
+    ctx.fillRect(tx3*S, 26*S-1, S, 1);
+  }
+  for (let ty3 = 0; ty3 < ROWS; ty3++) {
+    // V road left kerb (col 30)
+    ctx.fillRect(30*S, ty3*S, 1, S);
+    // V road right kerb
+    ctx.fillRect(31*S-1, ty3*S, 1, S);
+  }
+
+  // Soft drop shadows under buildings (painted into canvas before building images layer on top)
+  const buildingShadows = [
+    [5,5,6,5],[36,5,6,5],[5,36,7,5],[36,36,7,5],  // named
+    [34,25,5,5],                                     // townhall
+  ];
+  buildingShadows.forEach(([bx,by,bw,bh]) => {
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(bx*S+3, (by+bh)*S, bw*S-3, 4);  // bottom shadow
+    ctx.fillRect((bx+bw)*S, by*S+3, 4, bh*S-3);  // right shadow
+  });
 
   worldGfx.refresh();
   console.log('[createTextures] ✓ Road-grid town drawn (50×50 tiles, road every 8, procedural buildings)');
@@ -1878,65 +1922,138 @@ function createTextures(scene) {
   // Mini drawBuilding that renders into a standalone canvas at 1:1 (no tile coords)
   function drawBuildingTex(ctx2, w, h, roofCol, wallCol, variant) {
     const roofH = Math.floor(h * 0.36);
-    // Wall
+
+    // ── WALL — base + subtle brick pattern + depth shading ──
     ctx2.fillStyle = wallCol; ctx2.fillRect(0, 0, w, h);
-    ctx2.fillStyle = darkenHex(wallCol, 10);
-    for (let wy2 = roofH + 4; wy2 < h - 3; wy2 += 7) ctx2.fillRect(1, wy2, w-2, 1);
-    ctx2.fillStyle = darkenHex(wallCol, 18);
-    ctx2.fillRect(0, 0, 2, h); ctx2.fillRect(0, h-2, w, 2);
-    ctx2.fillStyle = lightenHex(wallCol, 22); ctx2.fillRect(1, roofH, w-2, 2);
-    // Roof
+    // Horizontal brick lines
+    ctx2.fillStyle = darkenHex(wallCol, 12);
+    for (let wy2 = roofH + 6; wy2 < h - 3; wy2 += 6) ctx2.fillRect(2, wy2, w-4, 1);
+    // Vertical mortar joints (staggered every other row)
+    ctx2.fillStyle = darkenHex(wallCol, 8);
+    let row = 0;
+    for (let wy2 = roofH + 6; wy2 < h - 3; wy2 += 6, row++) {
+      const off = (row % 2 === 0) ? 0 : 8;
+      for (let bx = off; bx < w; bx += 16) ctx2.fillRect(bx, wy2 - 5, 1, 5);
+    }
+    // Left shadow pillar
+    ctx2.fillStyle = darkenHex(wallCol, 20);
+    ctx2.fillRect(0, 0, 3, h);
+    // Bottom shadow strip
+    ctx2.fillRect(0, h-3, w, 3);
+    // Right highlight
+    ctx2.fillStyle = lightenHex(wallCol, 12);
+    ctx2.fillRect(w-2, roofH, 2, h-roofH);
+    // Top wall highlight
+    ctx2.fillStyle = lightenHex(wallCol, 25);
+    ctx2.fillRect(3, roofH, w-5, 2);
+
+    // ── ROOF ──
     ctx2.fillStyle = roofCol; ctx2.fillRect(0, 0, w, roofH);
     if (variant === 'shop' || variant === 'townhall') {
+      // Flat roof: parapet crenellations
       ctx2.fillStyle = darkenHex(roofCol, 15);
-      for (let cx2 = 2; cx2 < w-2; cx2 += 8) ctx2.fillRect(cx2, 0, 4, 4);
+      for (let cx2 = 3; cx2 < w-3; cx2 += 8) ctx2.fillRect(cx2, 0, 4, 5);
+      // Awning stripes
+      for (let i = 0; i < 3; i++) {
+        ctx2.fillStyle = i%2===0 ? darkenHex(roofCol,8) : lightenHex(roofCol,20);
+        ctx2.fillRect(4, roofH + i*3, w-8, 3);
+      }
       if (variant === 'townhall') {
-        ctx2.fillStyle = '#808080'; ctx2.fillRect(w/2-1, -6, 2, 8);
-        ctx2.fillStyle = '#f8d030'; ctx2.fillRect(w/2+1, -6, 7, 5);
+        // Flag pole + flag
+        ctx2.fillStyle = '#909090'; ctx2.fillRect(w/2-1, -8, 2, 10);
+        ctx2.fillStyle = '#e82020'; ctx2.fillRect(w/2+1, -8, 8, 3);
+        ctx2.fillStyle = '#f8d030'; ctx2.fillRect(w/2+1, -5, 8, 2);
       }
     } else {
-      ctx2.fillStyle = darkenHex(roofCol, 12);
-      for (let row = 0; row < roofH; row += 4) {
-        const off = (row/4)%2===0 ? 0 : 4;
-        for (let cx2 = off; cx2 < w; cx2 += 10) ctx2.fillRect(cx2, row, 8, 3);
+      // Pitched roof: tile rows with stagger
+      ctx2.fillStyle = darkenHex(roofCol, 14);
+      for (let row2 = 2; row2 < roofH; row2 += 4) {
+        const off = (row2/4)%2===0 ? 0 : 5;
+        for (let cx2 = off; cx2 < w; cx2 += 10) ctx2.fillRect(cx2, row2, 8, 3);
       }
-      ctx2.fillStyle = lightenHex(roofCol, 30); ctx2.fillRect(3, 0, w-6, 2);
-      ctx2.fillStyle = darkenHex(roofCol, 22); ctx2.fillRect(0, roofH-2, w, 2);
-      // Chimney
-      ctx2.fillStyle = '#888070'; ctx2.fillRect(w-14, -5, 7, roofH+2);
-      ctx2.fillStyle = '#606050'; ctx2.fillRect(w-15, -7, 9, 3);
-      ctx2.fillStyle = 'rgba(200,200,200,0.45)';
-      ctx2.beginPath(); ctx2.arc(w-11, -10, 3, 0, Math.PI*2); ctx2.fill();
+      // Ridge highlight
+      ctx2.fillStyle = lightenHex(roofCol, 35); ctx2.fillRect(4, 0, w-8, 2);
+      // Eave shadow
+      ctx2.fillStyle = darkenHex(roofCol, 28); ctx2.fillRect(0, roofH-2, w, 3);
+      // Chimney with cap
+      const chX = w-15;
+      ctx2.fillStyle = '#908070'; ctx2.fillRect(chX, -6, 8, roofH+3);
+      ctx2.fillStyle = '#706050'; ctx2.fillRect(chX-1, -8, 10, 3);
+      ctx2.fillStyle = lightenHex('#908070', 15); ctx2.fillRect(chX+1, -5, 3, roofH);
+      // Smoke
+      ctx2.fillStyle = 'rgba(210,210,210,0.5)';
+      ctx2.beginPath(); ctx2.arc(chX+3, -12, 3, 0, Math.PI*2); ctx2.fill();
+      ctx2.beginPath(); ctx2.arc(chX+6, -17, 2, 0, Math.PI*2); ctx2.fill();
     }
-    // Windows
-    const winY = roofH + 6;
+
+    // ── WINDOWS — with depth sill and inner shadow ──
+    const winY = roofH + 7;
     if (variant === 'shop' || variant === 'townhall') {
-      ctx2.fillStyle = '#b8e8ff'; ctx2.fillRect(8, winY, w-16, 14);
-      ctx2.fillStyle = '#e8f8ff'; ctx2.fillRect(10, winY+2, 5, 10);
-      ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(8, winY, w-16, 14);
-      ctx2.fillStyle = '#181018'; ctx2.fillRect(w/2-1, winY, 2, 14);
+      // Wide display window
+      const ww = w - 16;
+      ctx2.fillStyle = '#101820'; ctx2.fillRect(8, winY, ww, 15);      // outer frame dark
+      ctx2.fillStyle = '#b8e8ff'; ctx2.fillRect(10, winY+2, ww-4, 11); // glass
+      ctx2.fillStyle = '#e8f8ff'; ctx2.fillRect(11, winY+3, 5, 4);     // shine
+      ctx2.fillStyle = '#78c8f0'; ctx2.fillRect(10, winY+10, ww-4, 2); // bottom tint
+      ctx2.fillStyle = '#101820'; ctx2.fillRect(8+ww/2-1, winY, 2, 15); // divider
     } else {
-      [[6, winY], [w-18, winY]].forEach(([wx2, wy2]) => {
-        ctx2.fillStyle = '#b8e0ff'; ctx2.fillRect(wx2, wy2, 12, 9);
-        ctx2.fillStyle = roofCol; ctx2.fillRect(wx2, wy2, 3, 9); ctx2.fillRect(wx2+9, wy2, 3, 9);
-        ctx2.fillStyle = '#e0f4ff'; ctx2.fillRect(wx2+3, wy2+1, 6, 3);
-        ctx2.fillStyle = '#181018';
-        ctx2.fillRect(wx2+5, wy2, 2, 9); ctx2.fillRect(wx2, wy2+4, 12, 1);
-        ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(wx2, wy2, 12, 9);
+      [[5, winY], [w-19, winY]].forEach(([wx2, wy2]) => {
+        // Window sill (3D ledge)
+        ctx2.fillStyle = darkenHex(wallCol, 25); ctx2.fillRect(wx2-1, wy2+10, 14, 3);
+        ctx2.fillStyle = lightenHex(wallCol, 10); ctx2.fillRect(wx2-1, wy2+10, 14, 1);
+        // Frame
+        ctx2.fillStyle = '#282018'; ctx2.fillRect(wx2-1, wy2-1, 14, 12);
+        // Glass with inner shadow
+        ctx2.fillStyle = '#90c8f0'; ctx2.fillRect(wx2, wy2, 12, 10);
+        ctx2.fillStyle = '#b8e0ff'; ctx2.fillRect(wx2+1, wy2+1, 9, 7);
+        // Shine
+        ctx2.fillStyle = '#e8f8ff'; ctx2.fillRect(wx2+1, wy2+1, 4, 3);
+        // Curtains
+        ctx2.fillStyle = roofCol + 'cc';  // semi-transparent roof colour
+        ctx2.fillStyle = darkenHex(roofCol, 5); ctx2.fillRect(wx2, wy2, 3, 10);
+        ctx2.fillRect(wx2+9, wy2, 3, 10);
+        // Cross divider
+        ctx2.fillStyle = '#282018';
+        ctx2.fillRect(wx2+5, wy2, 2, 10); ctx2.fillRect(wx2, wy2+4, 12, 1);
+        // Flower box below window
+        ctx2.fillStyle = '#804018'; ctx2.fillRect(wx2-1, wy2+11, 14, 4);
+        ctx2.fillStyle = '#e82020'; ctx2.fillRect(wx2+1, wy2+11, 3, 3);
+        ctx2.fillStyle = '#f8d030'; ctx2.fillRect(wx2+5, wy2+11, 3, 3);
+        ctx2.fillStyle = '#289048'; ctx2.fillRect(wx2+9, wy2+11, 3, 3);
       });
     }
-    // Door
-    const dw = variant==='shop'||variant==='townhall' ? 14 : 10;
-    const dh = variant==='shop'||variant==='townhall' ? 20 : 16;
+
+    // ── DOOR — stepped frame + panels + knob ──
+    const isLarge = variant==='shop'||variant==='townhall';
+    const dw = isLarge ? 14 : 10;
+    const dh = isLarge ? 20 : 16;
     const dx = Math.floor(w/2) - Math.floor(dw/2), dy = h - dh;
-    ctx2.fillStyle = darkenHex(wallCol, 20); ctx2.fillRect(dx-2, dy-2, dw+4, dh+2);
+    // Outer step frame
+    ctx2.fillStyle = darkenHex(wallCol, 30); ctx2.fillRect(dx-3, dy-3, dw+6, dh+3);
+    // Inner door body
     ctx2.fillStyle = '#c07030'; ctx2.fillRect(dx, dy, dw, dh);
-    ctx2.fillStyle = '#a05020';
-    ctx2.fillRect(dx+2, dy+2, dw-4, dh/2-3); ctx2.fillRect(dx+2, dy+dh/2+1, dw-4, dh/2-3);
+    // Left shadow
     ctx2.fillStyle = '#804010'; ctx2.fillRect(dx, dy, 2, dh);
-    ctx2.fillStyle = '#f8d030'; ctx2.fillRect(dx+dw-4, dy+Math.floor(dh*0.55), 3, 3);
-    ctx2.fillStyle = darkenHex(wallCol, 25); ctx2.fillRect(dx-3, h-2, dw+6, 2);
+    // Upper panel
+    ctx2.fillStyle = '#a05820'; ctx2.fillRect(dx+2, dy+2, dw-4, Math.floor(dh*0.4)-1);
+    // Lower panel
+    ctx2.fillRect(dx+2, dy+Math.floor(dh*0.45), dw-4, Math.floor(dh*0.45));
+    // Panel highlights
+    ctx2.fillStyle = '#d08040';
+    ctx2.fillRect(dx+2, dy+2, dw-4, 1);
+    ctx2.fillRect(dx+2, dy+Math.floor(dh*0.45), dw-4, 1);
+    // Knob
+    ctx2.fillStyle = '#f8d030'; ctx2.fillRect(dx+dw-5, dy+Math.floor(dh*0.52), 3, 3);
+    ctx2.fillStyle = '#c0a020'; ctx2.fillRect(dx+dw-4, dy+Math.floor(dh*0.52)+1, 1, 1);
+    // Step
+    ctx2.fillStyle = darkenHex(wallCol, 15); ctx2.fillRect(dx-4, h-3, dw+8, 3);
+    ctx2.fillStyle = lightenHex(wallCol, 5);  ctx2.fillRect(dx-4, h-3, dw+8, 1);
+
+    // ── OUTLINE ──
     ctx2.strokeStyle = '#181018'; ctx2.lineWidth = 1; ctx2.strokeRect(0, 0, w, h);
+    // Inner outline shadow for 3D look
+    ctx2.strokeStyle = darkenHex(wallCol, 30);
+    ctx2.strokeRect(1, 1, w-2, h-2);
   }
 
   buildingVariantDefs.forEach(({ key, roofCol, wallCol, variant }) => {
@@ -2225,11 +2342,9 @@ function spawnCityWorldObjects(scene) {
     //  runs first and marks them itself via the 4×4 loop — the markOcc2 above is
     //  just a belt-and-suspenders guard for the named buildings)
 
-    // Road-side houses — same intervals as createTextures placeHouseNearRoad
-    for (let tx = 5; tx < 55; tx += 6) { addBldgCollider(tx, 22); addBldgCollider(tx, 28); }  // main H ±3
-    for (let ty = 5; ty < 45; ty += 6) { addBldgCollider(27, ty); addBldgCollider(33, ty); }  // main V ±3
-    for (let tx = 10; tx < 50; tx += 6) { addBldgCollider(tx, 13); addBldgCollider(tx, 37); }  // side H ±2
-    for (let ty = 10; ty < 40; ty += 6) { addBldgCollider(13, ty); addBldgCollider(47, ty); }  // side V ±2
+    // Road-side houses — matches createTextures placeHouseNearRoad (every 10 tiles, offset 4)
+    for (let tx = 8; tx < 50; tx += 10) { addBldgCollider(tx, 21); addBldgCollider(tx, 29); }
+    for (let ty = 8; ty < 42; ty += 10) { addBldgCollider(26, ty); addBldgCollider(34, ty); }
   }
 
   // ════════════════════════════════════════════════
