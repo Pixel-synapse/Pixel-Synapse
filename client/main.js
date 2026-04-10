@@ -1813,12 +1813,20 @@ function createTextures(scene) {
     markOcc(tx, ty, 4, 4);
   }
 
-  // MAIN ROAD houses — every 10 tiles instead of 6, only top+bottom of main H road
-  for (let tx = 8; tx < 50; tx += 10) placeHouseNearRoad(tx, 25, 0, -4);
-  for (let tx = 8; tx < 50; tx += 10) placeHouseNearRoad(tx, 25, 0,  4);
-  // VERTICAL ROAD — left and right side, every 10 tiles
-  for (let ty = 8; ty < 42; ty += 10) placeHouseNearRoad(30, ty, -4, 0);
-  for (let ty = 8; ty < 42; ty += 10) placeHouseNearRoad(30, ty,  4, 0);
+  // Road-side houses — spacing=12 to prevent overlaps, offset=5 from road edge
+  // Skip tiles too close to plaza (cols 27-34, rows 22-28)
+  function nearPlaza(tx, ty) {
+    return tx >= 26 && tx <= 36 && ty >= 20 && ty <= 30;
+  }
+
+  for (let tx = 8; tx < 50; tx += 12) {
+    if (!nearPlaza(tx, 20)) placeHouseNearRoad(tx, 25, 0, -5);
+    if (!nearPlaza(tx, 30)) placeHouseNearRoad(tx, 25, 0,  5);
+  }
+  for (let ty = 6; ty < 42; ty += 12) {
+    if (!nearPlaza(25, ty)) placeHouseNearRoad(30, ty, -5, 0);
+    if (!nearPlaza(36, ty)) placeHouseNearRoad(30, ty,  6, 0);  // right side: col 36
+  }
 
   // ── 5. TREES — edge-only placement (reference doc: x<5||x>55||y<5||y>45) ──
   const treeShadows = [];
@@ -2342,9 +2350,16 @@ function spawnCityWorldObjects(scene) {
     //  runs first and marks them itself via the 4×4 loop — the markOcc2 above is
     //  just a belt-and-suspenders guard for the named buildings)
 
-    // Road-side houses — matches createTextures placeHouseNearRoad (every 10 tiles, offset 4)
-    for (let tx = 8; tx < 50; tx += 10) { addBldgCollider(tx, 21); addBldgCollider(tx, 29); }
-    for (let ty = 8; ty < 42; ty += 10) { addBldgCollider(26, ty); addBldgCollider(34, ty); }
+    // Road-side houses — matches createTextures (spacing=12, offset=5, skip near plaza)
+    const nearPlaza2 = (tx, ty) => tx >= 26 && tx <= 36 && ty >= 20 && ty <= 30;
+    for (let tx = 8; tx < 50; tx += 12) {
+      if (!nearPlaza2(tx, 20)) addBldgCollider(tx, 20);
+      if (!nearPlaza2(tx, 30)) addBldgCollider(tx, 30);
+    }
+    for (let ty = 6; ty < 42; ty += 12) {
+      if (!nearPlaza2(25, ty)) addBldgCollider(25, ty);
+      if (!nearPlaza2(36, ty)) addBldgCollider(36, ty);
+    }
   }
 
   // ════════════════════════════════════════════════
