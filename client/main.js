@@ -3285,7 +3285,7 @@ class GameScene extends Phaser.Scene {
 
     // ── NPC WALK ANIMATION + Y-DEPTH SORTING + PROXIMITY GLOW ──
     this._npcGlowGfx.clear();
-    const glowPhase = (this.game.loop.totalElapsed / 600) % (Math.PI * 2);
+    const glowPhase = (this.game.loop.time / 600) % (Math.PI * 2);
     for (const npc of gameState.npcs) {
       const data = gameState.npcSprites[npc.id];
       if (!data) continue;
@@ -3298,14 +3298,13 @@ class GameScene extends Phaser.Scene {
       const dist = Phaser.Math.Distance.Between(sp.x, sp.y, sp2.x, sp2.y);
       if (dist < NPC_INTERACT_DIST && !gameState.dialogueOpen) {
         const pulse = 0.35 + Math.sin(glowPhase) * 0.2;
-        const col   = npc.color ? parseInt(npc.color.replace('#',''), 16) : 0xf8d030;
+        const rawCol = (npc.color || '#f8d030').replace('#', '');
+        const col = parseInt(rawCol, 16) || 0xf8d030;
         this._npcGlowGfx.lineStyle(2, col, pulse);
         this._npcGlowGfx.strokeCircle(sp2.x, sp2.y - 8, 18 + Math.sin(glowPhase) * 2);
-        // Small shadow ellipse under NPC
         this._npcGlowGfx.fillStyle(0x000000, 0.15);
         this._npcGlowGfx.fillEllipse(sp2.x, sp2.y + 2, 20, 6);
       } else {
-        // Always draw subtle shadow even when not in range
         this._npcGlowGfx.fillStyle(0x000000, 0.12);
         this._npcGlowGfx.fillEllipse(sp2.x, sp2.y + 2, 18, 5);
       }
